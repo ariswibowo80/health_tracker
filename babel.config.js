@@ -6,5 +6,7 @@ module.exports = function (api) {
       ['babel-preset-expo', { jsxImportSource: 'nativewind' }],
       'nativewind/babel',
     ],
+    // react-native-reanimated/plugin WAJIB menjadi item TERAKHIR di array plugins
+    plugins: ['react-native-reanimated/plugin'],
   };
 };
