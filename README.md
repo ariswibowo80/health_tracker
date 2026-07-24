@@ -148,6 +148,46 @@ eas build --platform android --profile preview   # menghasilkan link download .a
 Untuk rilis ke Google Play, gunakan profile `production` di `eas.json` (dibuat
 otomatis oleh `eas build:configure`) dan submit lewat `eas submit --platform android`.
 
+## 8b. Auto-Deploy Web ke Firebase Hosting (via GitHub Actions, tanpa CLI)
+
+Workflow `.github/workflows/deploy-hosting.yml` sudah disertakan: setiap kali
+ada push ke branch `main`, GitHub otomatis meng-build versi web dan
+mempublikasikannya ke Firebase Hosting. Semua langkah di bawah ini bisa
+dilakukan lewat browser saja (tidak perlu install apa pun di komputer).
+
+**Langkah 1 — Aktifkan Hosting di Firebase Console**
+1. Buka [console.firebase.google.com](https://console.firebase.google.com) → pilih project Anda.
+2. Menu kiri → **Build → Hosting** → **Get started** → ikuti wizard (boleh lewati langkah CLI, cukup sampai hosting aktif).
+
+**Langkah 2 — Buat Service Account key (untuk otorisasi GitHub Actions)**
+1. Di Firebase Console → ikon gerigi → **Project settings**.
+2. Tab **Service accounts** → klik **Generate new private key** → **Generate key**.
+3. Sebuah file `.json` akan terunduh (JANGAN dibagikan/di-commit ke repo — ini kredensial rahasia).
+
+**Langkah 3 — Simpan sebagai GitHub Secrets (via web)**
+Di repo GitHub Anda: **Settings → Secrets and variables → Actions → New repository secret**, tambahkan satu per satu:
+
+| Nama Secret | Isi |
+|---|---|
+| `FIREBASE_SERVICE_ACCOUNT` | Isi seluruh isi file `.json` dari Langkah 2 (buka file itu dengan Notepad/TextEdit, copy-paste semuanya) |
+| `FIREBASE_PROJECT_ID` | Project ID Firebase Anda (terlihat di Project settings → General) |
+| `EXPO_PUBLIC_FIREBASE_API_KEY` | Sama seperti isi `.env` |
+| `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | Sama seperti isi `.env` |
+| `EXPO_PUBLIC_FIREBASE_PROJECT_ID` | Sama seperti isi `.env` |
+| `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` | Sama seperti isi `.env` |
+| `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Sama seperti isi `.env` |
+| `EXPO_PUBLIC_FIREBASE_APP_ID` | Sama seperti isi `.env` |
+
+**Langkah 4 — Jalankan**
+Setelah semua secret tersimpan, buka tab **Actions** di repo GitHub Anda →
+workflow "Deploy Web to Firebase Hosting" akan otomatis berjalan setiap push
+ke `main` (atau klik **Run workflow** manual di tab Actions untuk memicu
+langsung tanpa push baru). Setelah selesai (tanda centang hijau), aplikasi
+web bisa diakses di `https://<project-id>.web.app`.
+
+> Workflow ini juga otomatis men-deploy `firestore.rules` setiap kali hosting
+> ter-deploy, jadi perubahan aturan keamanan ikut ter-update tanpa perlu CLI.
+
 ## 9. Setup Firebase Console (sekali di awal)
 
 1. Buat project baru di [console.firebase.google.com](https://console.firebase.google.com).
