@@ -4,7 +4,6 @@
 export type MemberRole = 'anak' | 'dewasa' | 'lansia';
 
 export interface FamilyMember {
-  id: string;
   ownerUid: string;          // uid akun Firebase Auth pemilik akun keluarga
   name: string;
   role: MemberRole;
@@ -20,7 +19,6 @@ export interface FamilyMember {
 /* ---------------------- MODUL 1: SICKNESS TRACKER ---------------------- */
 
 export interface SicknessEpisode {
-  id: string;
   memberId: string;
   title: string;             // mis. "Demam Gendis - Juli 2026"
   startDate: string;
@@ -31,7 +29,6 @@ export interface SicknessEpisode {
 }
 
 export interface SymptomLog {
-  id: string;
   episodeId: string;
   memberId: string;
   timestamp: number;
@@ -41,7 +38,6 @@ export interface SymptomLog {
 }
 
 export interface DoctorVisit {
-  id: string;
   episodeId: string;
   memberId: string;
   date: string;
@@ -71,7 +67,6 @@ export type MedicationForm =
   | 'lainnya';
 
 export interface AcuteMedication {
-  id: string;
   episodeId: string;
   memberId: string;
   name: string;                // mis. "Tamiflu", "Nasonex", "Sanmol"
@@ -106,7 +101,6 @@ export type LabParameterKey =
   | 'vitaminD';
 
 export interface LabRecord {
-  id: string;
   memberId: string;
   date: string;
   source: 'MCU' | 'Tes Mandiri' | 'Lab Klinik';
@@ -128,7 +122,6 @@ export interface ReferenceRange {
 /* ------------------------- MODUL 3: DAILY LIFESTYLE ------------------------- */
 
 export interface DailyLog {
-  id: string;
   memberId: string;
   date: string;
   weightKg?: number;
@@ -146,7 +139,6 @@ export interface DailyLog {
 }
 
 export interface MaintenanceMedication {
-  id: string;
   memberId: string;
   name: string;             // mis. "Metformin (Glucophage)", "Candesartan"
   dose: string;              // mis. "500 mg"

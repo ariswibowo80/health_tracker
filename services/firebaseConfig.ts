@@ -6,6 +6,9 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   initializeAuth,
   getAuth,
+  // @ts-expect-error -- getReactNativePersistence hanya terlihat lewat
+  // resolusi kondisi "react-native" (Metro), tidak lewat resolusi tsc biasa.
+  // Aman diabaikan: kode ini hanya dieksekusi di cabang Platform.OS !== 'web'.
   getReactNativePersistence,
   browserLocalPersistence,
   Auth,

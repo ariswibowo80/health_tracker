@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 // app/members/[id]/sickness.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from 'react-native';
@@ -196,7 +197,7 @@ function EpisodeCard({
             <Text className="text-teal-700 text-xs">{showMedForm ? 'Batal' : '+ Tambah Obat'}</Text>
           </Pressable>
           {showMedForm && (
-            <MedicationForm
+            <MedicationEntryForm
               memberId={memberId}
               episodeId={episode.id}
               onSaved={() => { setShowMedForm(false); onDataChanged(); }}
@@ -240,7 +241,7 @@ function DoctorVisitForm({ memberId, episodeId, onSaved }: { memberId: string; e
   );
 }
 
-function MedicationForm({ memberId, episodeId, onSaved }: { memberId: string; episodeId: string; onSaved: () => void }) {
+function MedicationEntryForm({ memberId, episodeId, onSaved }: { memberId: string; episodeId: string; onSaved: () => void }) {
   const [name, setName] = useState('');
   const [form, setForm] = useState<MedicationForm>('sirup');
   const [dose, setDose] = useState('');
@@ -282,7 +283,7 @@ function MedicationForm({ memberId, episodeId, onSaved }: { memberId: string; ep
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View className="mb-3">
       <Text className="text-slate-700 text-xs font-medium mb-1">{label}</Text>

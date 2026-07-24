@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 // app/members/[id]/lab.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from 'react-native';
@@ -207,7 +208,7 @@ export default function LabScreen() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View className="mb-3">
       <Text className="text-slate-700 text-xs font-medium mb-1">{label}</Text>
