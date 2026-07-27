@@ -5,24 +5,14 @@
     "scheme": "healthtracker",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "backgroundColor": "#0F766E"
-    },
-    "assetBundlePatterns": ["**/*"],
     "android": {
       "package": "com.keluarga.healthtracker",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F766E"
-      },
       "permissions": []
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/favicon.png"
+      "output": "static"
     },
     "plugins": ["expo-router"],
     "experiments": {

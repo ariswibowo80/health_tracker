@@ -1,14 +1,60 @@
 // app/login.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import { loginFamilyAccount, registerFamilyAccount } from '../services/authService';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import {
+  loginFamilyAccount,
+  registerFamilyAccount,
+  loginWithGoogleWeb,
+  loginWithGoogleIdToken,
+} from '../services/authService';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Konfigurasi OAuth Google untuk Android/iOS (native).
+  // Client ID diambil dari Google Cloud Console > Credentials, dibuat
+  // otomatis saat mengaktifkan provider Google di Firebase Authentication.
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, // fallback/Expo Go
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success' && response.params.id_token) {
+      setGoogleLoading(true);
+      loginWithGoogleIdToken(response.params.id_token)
+        .catch(() => setError('Login Google gagal. Silakan coba lagi.'))
+        .finally(() => setGoogleLoading(false));
+    } else if (response?.type === 'error') {
+      setError('Login Google dibatalkan atau gagal.');
+    }
+  }, [response]);
+
+  async function handleGoogleLogin() {
+    setError(null);
+    if (Platform.OS === 'web') {
+      setGoogleLoading(true);
+      try {
+        await loginWithGoogleWeb();
+      } catch (e) {
+        setError('Login Google gagal. Silakan coba lagi.');
+      } finally {
+        setGoogleLoading(false);
+      }
+    } else {
+      await promptAsync();
+    }
+  }
 
   async function handleSubmit() {
     setError(null);
@@ -77,6 +123,21 @@ export default function LoginScreen() {
           )}
         </Pressable>
 
+        <Pressable
+          onPress={handleGoogleLogin}
+          disabled={googleLoading || (Platform.OS !== 'web' && !request)}
+          className="border border-slate-200 rounded-xl py-3 items-center mt-3 flex-row justify-center gap-2 disabled:opacity-60"
+        >
+          {googleLoading ? (
+            <ActivityIndicator color="#0F766E" size="small" />
+          ) : (
+            <>
+              <Text className="text-base">🔵</Text>
+              <Text className="text-slate-700 font-medium text-sm">Masuk dengan Google</Text>
+            </>
+          )}
+        </Pressable>
+
         <Pressable onPress={() => setMode(mode === 'login' ? 'register' : 'login')} className="mt-4">
           <Text className="text-teal-700 text-xs text-center">
             {mode === 'login' ? 'Belum punya akun? Daftar di sini' : 'Sudah punya akun? Masuk di sini'}
@@ -89,6 +150,10 @@ export default function LoginScreen() {
 
 function mapAuthError(code?: string) {
   switch (code) {
+    case 'auth/unauthorized-domain':
+      return 'Domain ini belum diizinkan di Firebase Console (Authentication > Settings > Authorized domains).';
+    case 'auth/popup-closed-by-user':
+      return 'Jendela login Google ditutup sebelum selesai.';
     case 'auth/invalid-email':
       return 'Format email tidak valid.';
     case 'auth/email-already-in-use':
