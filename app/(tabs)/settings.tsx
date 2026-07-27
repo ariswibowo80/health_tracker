@@ -1,5 +1,5 @@
 // app/(tabs)/settings.tsx
-import { View, Text, Pressable, Alert } from 'react-native';
+import { View, Text, Pressable, Alert, Platform } from 'react-native';
 import { auth } from '../../services/firebaseConfig';
 import { logoutFamilyAccount } from '../../services/authService';
 
@@ -7,6 +7,16 @@ export default function SettingsScreen() {
   const email = auth.currentUser?.email ?? '-';
 
   function handleLogout() {
+    // Alert.alert bawaan React Native tidak menampilkan dialog konfirmasi
+    // yang berfungsi penuh di platform Web (react-native-web), jadi di web
+    // kita pakai window.confirm bawaan browser sebagai gantinya.
+    if (Platform.OS === 'web') {
+      if (window.confirm('Anda yakin ingin keluar?')) {
+        logoutFamilyAccount();
+      }
+      return;
+    }
+
     Alert.alert('Keluar Akun', 'Anda yakin ingin keluar?', [
       { text: 'Batal', style: 'cancel' },
       { text: 'Keluar', style: 'destructive', onPress: () => logoutFamilyAccount() },
