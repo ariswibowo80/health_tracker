@@ -11,6 +11,10 @@ import ScreenHeader from '../../../components/ScreenHeader';
 
 type WithId<T> = T & { id: string };
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const PARAM_ORDER: LabParameterKey[] = [
   'glukosaPuasa', 'glukosa2JamPP', 'glukosaSewaktu', 'hba1c',
   'trigliserida', 'kolesterolTotal', 'hdl', 'ldl',
@@ -25,7 +29,7 @@ export default function LabScreen() {
   const [showForm, setShowForm] = useState(false);
   const [trendParam, setTrendParam] = useState<LabParameterKey>('glukosaPuasa');
 
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(todayISO());
   const [source, setSource] = useState<LabRecord['source']>('MCU');
   const [facility, setFacility] = useState('');
   const [values, setValues] = useState<Partial<Record<LabParameterKey, string>>>({});
@@ -62,7 +66,7 @@ export default function LabScreen() {
         values: numericValues,
         notes: notes || undefined,
       });
-      setDate(''); setFacility(''); setValues({}); setNotes(''); setShowForm(false);
+      setDate(todayISO()); setFacility(''); setValues({}); setNotes(''); setShowForm(false);
       await load();
     } finally {
       setSaving(false);

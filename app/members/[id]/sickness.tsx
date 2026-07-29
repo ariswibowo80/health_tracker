@@ -11,6 +11,10 @@ import ScreenHeader from '../../../components/ScreenHeader';
 
 type WithId<T> = T & { id: string };
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const MED_FORMS: MedicationForm[] = ['sirup', 'tablet', 'puyer', 'tetes', 'semprot', 'nebulizer', 'suntik', 'lainnya'];
 
 export default function SicknessScreen() {
@@ -24,7 +28,7 @@ export default function SicknessScreen() {
 
   // Form episode baru
   const [title, setTitle] = useState('');
-  const [startDate, setStartDate] = useState('');
+  const [startDate, setStartDate] = useState(todayISO());
   const [complaints, setComplaints] = useState('');
 
   const load = useCallback(async () => {
@@ -53,7 +57,7 @@ export default function SicknessScreen() {
       status: 'aktif',
       mainComplaints: complaints.split(',').map((c) => c.trim()).filter(Boolean),
     });
-    setTitle(''); setStartDate(''); setComplaints(''); setShowNewEpisode(false);
+    setTitle(''); setStartDate(todayISO()); setComplaints(''); setShowNewEpisode(false);
     await load();
   }
 
@@ -214,7 +218,7 @@ function EpisodeCard({
 }
 
 function DoctorVisitForm({ memberId, episodeId, onSaved }: { memberId: string; episodeId: string; onSaved: () => void }) {
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(todayISO());
   const [doctorName, setDoctorName] = useState('');
   const [facility, setFacility] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
@@ -251,7 +255,7 @@ function MedicationEntryForm({ memberId, episodeId, onSaved }: { memberId: strin
   const [dose, setDose] = useState('');
   const [frequencyPerDay, setFrequencyPerDay] = useState('2');
   const [specialNotes, setSpecialNotes] = useState('');
-  const [startDate, setStartDate] = useState('');
+  const [startDate, setStartDate] = useState(todayISO());
 
   async function handleSave() {
     if (!name || !dose || !startDate) return;

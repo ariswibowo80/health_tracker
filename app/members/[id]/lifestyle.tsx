@@ -8,6 +8,10 @@ import ScreenHeader from '../../../components/ScreenHeader';
 
 type WithId<T> = T & { id: string };
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function LifestyleScreen() {
   const { id: memberId } = useLocalSearchParams<{ id: string }>();
   const [logs, setLogs] = useState<WithId<DailyLog>[]>([]);
@@ -17,7 +21,7 @@ export default function LifestyleScreen() {
   const [showMedForm, setShowMedForm] = useState(false);
 
   // Form log harian
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(todayISO());
   const [weightKg, setWeightKg] = useState('');
   const [menu, setMenu] = useState('');
   const [exerciseType, setExerciseType] = useState('');
@@ -56,7 +60,7 @@ export default function LifestyleScreen() {
         ? [{ type: exerciseType, durationMinutes: Number(exerciseDuration) || 0 }]
         : [],
     });
-    setDate(''); setWeightKg(''); setMenu(''); setExerciseType(''); setExerciseDuration('');
+    setDate(todayISO()); setWeightKg(''); setMenu(''); setExerciseType(''); setExerciseDuration('');
     setShowLogForm(false);
     await load();
   }
