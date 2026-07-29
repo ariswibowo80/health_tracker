@@ -27,7 +27,11 @@ export default function LoginScreen() {
   // var belum diisi), dan baru mengecek konfigurasi asli saat tombol diklik.
   const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
   const googleAndroidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
-  const googleConfigured = Platform.OS === 'web' ? !!googleWebClientId : !!googleAndroidClientId;
+  // Di Web, signInWithPopup(GoogleAuthProvider) memakai konfigurasi OAuth
+  // bawaan Firebase — TIDAK butuh Client ID manual. Env var di atas hanya
+  // relevan untuk Android/iOS (expo-auth-session), jadi pengecekan
+  // "belum dikonfigurasi" juga hanya berlaku untuk native.
+  const googleConfigured = Platform.OS === 'web' ? true : !!googleAndroidClientId;
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     webClientId: googleWebClientId || 'not-configured.apps.googleusercontent.com',
