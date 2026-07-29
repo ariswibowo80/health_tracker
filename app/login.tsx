@@ -20,13 +20,19 @@ export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Konfigurasi OAuth Google untuk Android/iOS (native).
-  // Client ID diambil dari Google Cloud Console > Credentials, dibuat
-  // otomatis saat mengaktifkan provider Google di Firebase Authentication.
+  // Konfigurasi OAuth Google. PENTING: key untuk platform web WAJIB bernama
+  // `webClientId` (bukan `clientId`) — kalau bernilai undefined, hook ini
+  // akan MELEMPAR ERROR SAAT KOMPONEN DIMUAT dan meng-crash seluruh app.
+  // Karena itu kita selalu kirim string non-kosong (placeholder kalau env
+  // var belum diisi), dan baru mengecek konfigurasi asli saat tombol diklik.
+  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const googleAndroidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+  const googleConfigured = Platform.OS === 'web' ? !!googleWebClientId : !!googleAndroidClientId;
+
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, // fallback/Expo Go
+    webClientId: googleWebClientId || 'not-configured.apps.googleusercontent.com',
+    androidClientId: googleAndroidClientId || 'not-configured.apps.googleusercontent.com',
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || 'not-configured.apps.googleusercontent.com',
   });
 
   useEffect(() => {
@@ -42,6 +48,10 @@ export default function LoginScreen() {
 
   async function handleGoogleLogin() {
     setError(null);
+    if (!googleConfigured) {
+      setError('Login Google belum diaktifkan oleh admin aplikasi ini.');
+      return;
+    }
     if (Platform.OS === 'web') {
       setGoogleLoading(true);
       try {
@@ -137,6 +147,11 @@ export default function LoginScreen() {
             </>
           )}
         </Pressable>
+        {!googleConfigured && (
+          <Text className="text-slate-400 text-[10px] text-center mt-1">
+            (Login Google belum aktif — gunakan email di atas)
+          </Text>
+        )}
 
         <Pressable onPress={() => setMode(mode === 'login' ? 'register' : 'login')} className="mt-4">
           <Text className="text-teal-700 text-xs text-center">
