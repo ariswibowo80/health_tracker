@@ -7,6 +7,7 @@ import { SicknessService } from '../../../services/firestoreService';
 import {
   SicknessEpisode, DoctorVisit, AcuteMedication, MedicationForm,
 } from '../../../types/health';
+import ScreenHeader from '../../../components/ScreenHeader';
 
 type WithId<T> = T & { id: string };
 
@@ -65,7 +66,9 @@ export default function SicknessScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 md:p-8">
+    <View className="flex-1 bg-slate-50">
+      <ScreenHeader title="Catatan Sakit" fallbackHref={`/members/${memberId}`} />
+      <ScrollView className="flex-1" contentContainerClassName="p-4 md:p-8">
       <Pressable
         onPress={() => setShowNewEpisode(!showNewEpisode)}
         className="bg-teal-700 rounded-xl py-3 items-center mb-4 max-w-[220px]"
@@ -114,7 +117,8 @@ export default function SicknessScreen() {
           ))}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

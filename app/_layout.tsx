@@ -40,11 +40,11 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" />
-      <Stack.Screen name="members/new" options={{ headerShown: true, title: 'Tambah Profil' }} />
-      <Stack.Screen name="members/[id]/index" options={{ headerShown: true, title: 'Detail Profil' }} />
-      <Stack.Screen name="members/[id]/sickness" options={{ headerShown: true, title: 'Catatan Sakit' }} />
-      <Stack.Screen name="members/[id]/lab" options={{ headerShown: true, title: 'Lab & MCU' }} />
-      <Stack.Screen name="members/[id]/lifestyle" options={{ headerShown: true, title: 'Harian & Obat Rutin' }} />
+      <Stack.Screen name="members/new" options={{ headerShown: false }} />
+      <Stack.Screen name="members/[id]/index" options={{ headerShown: false }} />
+      <Stack.Screen name="members/[id]/sickness" options={{ headerShown: false }} />
+      <Stack.Screen name="members/[id]/lab" options={{ headerShown: false }} />
+      <Stack.Screen name="members/[id]/lifestyle" options={{ headerShown: false }} />
     </Stack>
   );
 }

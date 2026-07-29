@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { auth } from '../../services/firebaseConfig';
 import { createFamilyMember } from '../../services/firestoreService';
 import { MemberRole } from '../../types/health';
+import ScreenHeader from '../../components/ScreenHeader';
 
 const AVATAR_COLORS = ['#0F766E', '#2563EB', '#D97706', '#DB2777', '#7C3AED', '#059669'];
 
@@ -57,7 +58,9 @@ export default function NewMemberScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 md:p-8">
+    <View className="flex-1 bg-slate-50">
+      <ScreenHeader title="Tambah Profil" fallbackHref="/(tabs)/members" />
+      <ScrollView className="flex-1" contentContainerClassName="p-4 md:p-8">
       <View className="bg-white rounded-2xl p-5 border border-slate-100 max-w-[480px] w-full">
         <Text className="text-lg font-bold text-slate-900 mb-4">Profil Anggota Keluarga Baru</Text>
 
@@ -140,7 +143,8 @@ export default function NewMemberScreen() {
           )}
         </Pressable>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

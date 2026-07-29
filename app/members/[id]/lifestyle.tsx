@@ -4,6 +4,7 @@ import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from 
 import { useLocalSearchParams } from 'expo-router';
 import { LifestyleService } from '../../../services/firestoreService';
 import { DailyLog, MaintenanceMedication } from '../../../types/health';
+import ScreenHeader from '../../../components/ScreenHeader';
 
 type WithId<T> = T & { id: string };
 
@@ -86,7 +87,9 @@ export default function LifestyleScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 md:p-8">
+    <View className="flex-1 bg-slate-50">
+      <ScreenHeader title="Harian & Obat Rutin" fallbackHref={`/members/${memberId}`} />
+      <ScrollView className="flex-1" contentContainerClassName="p-4 md:p-8">
       {/* --- OBAT RUTIN --- */}
       <Text className="text-slate-900 font-semibold mb-2">Obat Rutin Jangka Panjang</Text>
       {loading ? <ActivityIndicator color="#0F766E" /> : (
@@ -162,6 +165,7 @@ export default function LifestyleScreen() {
           </View>
         ))}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }

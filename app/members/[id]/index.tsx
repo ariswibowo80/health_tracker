@@ -13,6 +13,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../services/firebaseConfig';
 import { FamilyMember } from '../../../types/health';
 import { exportHealthReportToExcel, ExportBundle } from '../../../utils/excelExport';
+import ScreenHeader from '../../../components/ScreenHeader';
 
 type WithId<T> = T & { id: string };
 
@@ -66,8 +67,11 @@ export default function MemberDetailScreen() {
 
   if (loading || !summary) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50">
-        <ActivityIndicator color="#0F766E" size="large" />
+      <View className="flex-1 bg-slate-50">
+        <ScreenHeader title="Detail Profil" fallbackHref="/(tabs)/members" />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color="#0F766E" size="large" />
+        </View>
       </View>
     );
   }
@@ -75,7 +79,9 @@ export default function MemberDetailScreen() {
   const { member, activeSickness, latestWeight, lowStockMeds } = summary;
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 md:p-8">
+    <View className="flex-1 bg-slate-50">
+      <ScreenHeader title={member.name} fallbackHref="/(tabs)/members" />
+      <ScrollView className="flex-1" contentContainerClassName="p-4 md:p-8">
       {/* Header profil */}
       <View className="bg-white rounded-2xl p-5 border border-slate-100 mb-4 flex-row items-center">
         <View
@@ -137,7 +143,8 @@ export default function MemberDetailScreen() {
           <Text className="text-white font-medium text-sm">📊 Ekspor Laporan {member.name}</Text>
         )}
       </Pressable>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

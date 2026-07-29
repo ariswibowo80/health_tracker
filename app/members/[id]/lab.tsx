@@ -7,6 +7,7 @@ import { LabService } from '../../../services/firestoreService';
 import { LabRecord, LabParameterKey } from '../../../types/health';
 import { REFERENCE_RANGES, getLabStatus, STATUS_COLOR_MAP } from '../../../constants/referenceRanges';
 import TrendChart from '../../../components/TrendChart';
+import ScreenHeader from '../../../components/ScreenHeader';
 
 type WithId<T> = T & { id: string };
 
@@ -77,7 +78,9 @@ export default function LabScreen() {
   const trendRef = REFERENCE_RANGES[trendParam];
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 md:p-8">
+    <View className="flex-1 bg-slate-50">
+      <ScreenHeader title="Lab & MCU" fallbackHref={`/members/${memberId}`} />
+      <ScrollView className="flex-1" contentContainerClassName="p-4 md:p-8">
       <Text className="text-xs text-slate-400 mb-4">
         Nilai referensi adalah acuan umum laboratorium, bukan pengganti interpretasi dokter.
       </Text>
@@ -204,7 +207,8 @@ export default function LabScreen() {
           ))}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
