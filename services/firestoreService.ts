@@ -36,6 +36,7 @@ import {
 import { db } from './firebaseConfig';
 import {
   FamilyMember,
+  Doctor,
   SicknessEpisode,
   SymptomLog,
   DoctorVisit,
@@ -85,6 +86,26 @@ async function listDocs<T>(
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as T) }));
 }
+
+/* ------------------------------------------------------------------ */
+/* DOCTORS (dibagikan di seluruh household, bukan per anggota keluarga) */
+/* ------------------------------------------------------------------ */
+
+export const DoctorService = {
+  async list(householdOwnerUid: string): Promise<WithId<Doctor>[]> {
+    const q = query(collection(db, 'doctors'), where('ownerUid', '==', householdOwnerUid));
+    const snap = await getDocs(q);
+    return snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Doctor) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+
+  create: (data: Omit<Doctor, 'createdAt'>) =>
+    createDoc(collection(db, 'doctors'), data),
+
+  update: (doctorId: string, data: Partial<Doctor>) =>
+    updateDoc(doc(db, 'doctors', doctorId), data as any),
+};
 
 /* ------------------------------------------------------------------ */
 /* FAMILY MEMBERS                                                      */
@@ -139,11 +160,23 @@ export const SicknessService = {
   addDoctorVisit: (memberId: string, data: Omit<DoctorVisit, 'id'>) =>
     createDoc(subcollection(memberId, 'doctorVisits'), data),
 
+  updateDoctorVisit: (memberId: string, id: string, data: Partial<DoctorVisit>) =>
+    updateDocById(memberId, 'doctorVisits', id, data),
+
+  deleteDoctorVisit: (memberId: string, id: string) =>
+    deleteDocById(memberId, 'doctorVisits', id),
+
   listDoctorVisits: (memberId: string) =>
     listDocs<DoctorVisit>(memberId, 'doctorVisits', 'date'),
 
   addAcuteMedication: (memberId: string, data: Omit<AcuteMedication, 'id'>) =>
     createDoc(subcollection(memberId, 'acuteMedications'), data),
+
+  updateAcuteMedication: (memberId: string, id: string, data: Partial<AcuteMedication>) =>
+    updateDocById(memberId, 'acuteMedications', id, data),
+
+  deleteAcuteMedication: (memberId: string, id: string) =>
+    deleteDocById(memberId, 'acuteMedications', id),
 
   listAcuteMedications: (memberId: string) =>
     listDocs<AcuteMedication>(memberId, 'acuteMedications', 'startDate'),

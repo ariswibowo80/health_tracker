@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { auth } from '../../services/firebaseConfig';
+import { ensureHouseholdAndGetActiveOwner } from '../../services/householdService';
 import { createFamilyMember } from '../../services/firestoreService';
 import { MemberRole } from '../../types/health';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -27,8 +28,8 @@ export default function NewMemberScreen() {
 
   async function handleSave() {
     setError(null);
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    const user = auth.currentUser;
+    if (!user) return;
 
     if (!name.trim()) {
       setError('Nama wajib diisi.');
@@ -41,8 +42,9 @@ export default function NewMemberScreen() {
 
     setSaving(true);
     try {
+      const ownerUid = await ensureHouseholdAndGetActiveOwner(user.uid, user.email);
       const id = await createFamilyMember({
-        ownerUid: uid,
+        ownerUid,
         name: name.trim(),
         role,
         birthDate,

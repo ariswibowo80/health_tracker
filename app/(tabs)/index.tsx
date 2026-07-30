@@ -9,6 +9,7 @@ import { View, Text, ScrollView, useWindowDimensions, ActivityIndicator, Pressab
 import { router } from 'expo-router';
 
 import { auth } from '../../services/firebaseConfig';
+import { ensureHouseholdAndGetActiveOwner } from '../../services/householdService';
 import {
   getFamilyMembers,
   getMemberHealthSummary,
@@ -31,10 +32,11 @@ export default function DashboardScreen() {
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const uid = auth.currentUser?.uid;
-      if (!uid) return;
+      const user = auth.currentUser;
+      if (!user) return;
 
-      const members = await getFamilyMembers(uid);
+      const ownerUid = await ensureHouseholdAndGetActiveOwner(user.uid, user.email);
+      const members = await getFamilyMembers(ownerUid);
       const results = await Promise.all(members.map((m) => getMemberHealthSummary(m)));
       setSummaries(results);
     } finally {

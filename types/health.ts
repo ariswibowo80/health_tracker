@@ -3,8 +3,30 @@
 
 export type MemberRole = 'anak' | 'dewasa' | 'lansia';
 
+/**
+ * "Household" adalah unit berbagi akses: satu akun pembuat (ownerUid) bisa
+ * mengundang anggota lain (mis. suami/istri) lewat email supaya sama-sama
+ * bisa melihat & mengedit profil keluarga yang sama. ID dokumen ini SAMA
+ * PERSIS dengan ownerUid pembuat pertama — jadi data FamilyMember yang
+ * SUDAH ADA (memakai field `ownerUid` lama) tetap kompatibel tanpa migrasi,
+ * karena `ownerUid` itu sekaligus jadi kunci ke household ini.
+ */
+export interface Household {
+  ownerUid: string;
+  memberEmails: string[]; // email yang diundang (termasuk email pembuat sendiri)
+  memberUids: string[];   // uid yang sudah benar-benar "klaim" akses (termasuk pembuat)
+  createdAt: number;
+}
+
+/** Pointer kecil: uid mana sedang aktif di household siapa. */
+export interface UserPointer {
+  householdOwnerUid: string;
+  email: string;
+  updatedAt: number;
+}
+
 export interface FamilyMember {
-  ownerUid: string;          // uid akun Firebase Auth pemilik akun keluarga
+  ownerUid: string;          // = ID household (lihat Household di atas)
   name: string;
   role: MemberRole;
   birthDate: string;         // ISO string, dipakai utk hitung usia & rentang normal anak
@@ -13,6 +35,17 @@ export interface FamilyMember {
   bloodType?: string;
   allergies?: string[];
   chronicConditions?: string[]; // mis. ['Diabetes Tipe 2', 'Hipertensi']
+  createdAt: number;
+}
+
+/** Profil dokter, dibagikan di seluruh household (bukan per anggota keluarga). */
+export interface Doctor {
+  ownerUid: string; // = ID household, sama seperti FamilyMember.ownerUid
+  name: string;
+  specialization?: string;   // mis. "Sp.A (Dokter Anak)"
+  practiceLocation?: string; // mis. "RS Grha Kedoya"
+  practiceSchedule?: string; // teks bebas, mis. "Senin & Rabu 18:00-20:00"
+  phone?: string;
   createdAt: number;
 }
 
@@ -41,6 +74,7 @@ export interface DoctorVisit {
   episodeId: string;
   memberId: string;
   date: string;
+  doctorId?: string;         // referensi ke Doctor.id kalau dipilih dari daftar
   doctorName: string;        // mis. "dr. Cynthia Utami, Sp.A"
   facility: string;           // mis. "RS Grha Kedoya"
   diagnosis: string;

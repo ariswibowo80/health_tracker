@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { auth } from '../../services/firebaseConfig';
+import { ensureHouseholdAndGetActiveOwner } from '../../services/householdService';
 import { getFamilyMembers } from '../../services/firestoreService';
 import { FamilyMember } from '../../types/health';
 
@@ -15,11 +16,12 @@ export default function MembersScreen() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    const user = auth.currentUser;
+    if (!user) return;
     setLoading(true);
     try {
-      setMembers(await getFamilyMembers(uid));
+      const ownerUid = await ensureHouseholdAndGetActiveOwner(user.uid, user.email);
+      setMembers(await getFamilyMembers(ownerUid));
     } finally {
       setLoading(false);
     }
