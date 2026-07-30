@@ -24,7 +24,8 @@ service cloud.firestore {
     //   pribadi ini dianggap risiko yang wajar; jangan bagikan project
     //   Firebase ini ke pihak tak dikenal.
     match /households/{ownerUid} {
-      allow read: if request.auth != null && request.auth.uid in resource.data.memberUids;
+      allow read: if request.auth != null &&
+                    (resource == null || request.auth.uid in resource.data.memberUids);
       allow create: if request.auth != null && request.auth.uid == ownerUid;
       allow update: if request.auth != null && (
                       request.auth.uid in resource.data.memberUids ||
