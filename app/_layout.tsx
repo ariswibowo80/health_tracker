@@ -5,6 +5,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 import { User } from 'firebase/auth';
 import { listenAuthState } from '../services/authService';
+import { HouseholdProvider } from '../contexts/HouseholdContext';
 
 export default function RootLayout() {
   const [user, setUser] = useState<User | null | undefined>(undefined); // undefined = belum diketahui
@@ -37,14 +38,17 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="members/new" options={{ headerShown: false }} />
-      <Stack.Screen name="members/[id]/index" options={{ headerShown: false }} />
-      <Stack.Screen name="members/[id]/sickness" options={{ headerShown: false }} />
-      <Stack.Screen name="members/[id]/lab" options={{ headerShown: false }} />
-      <Stack.Screen name="members/[id]/lifestyle" options={{ headerShown: false }} />
-    </Stack>
+    <HouseholdProvider user={user}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="members/new" options={{ headerShown: false }} />
+      <Stack.Screen name="doctors" options={{ headerShown: false }} />
+        <Stack.Screen name="members/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="members/[id]/sickness" options={{ headerShown: false }} />
+        <Stack.Screen name="members/[id]/lab" options={{ headerShown: false }} />
+        <Stack.Screen name="members/[id]/lifestyle" options={{ headerShown: false }} />
+      </Stack>
+    </HouseholdProvider>
   );
 }

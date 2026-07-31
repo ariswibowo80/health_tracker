@@ -105,6 +105,8 @@ export const DoctorService = {
 
   update: (doctorId: string, data: Partial<Doctor>) =>
     updateDoc(doc(db, 'doctors', doctorId), data as any),
+
+  delete: (doctorId: string) => deleteDoc(doc(db, 'doctors', doctorId)),
 };
 
 /* ------------------------------------------------------------------ */

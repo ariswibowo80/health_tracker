@@ -1,7 +1,7 @@
 // app/(tabs)/settings.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, Platform, TextInput, ActivityIndicator } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { auth } from '../../services/firebaseConfig';
 import { logoutFamilyAccount } from '../../services/authService';
 import {
@@ -107,6 +107,17 @@ export default function SettingsScreen() {
         <Text className="text-slate-500 text-xs mb-1">Akun masuk sebagai</Text>
         <Text className="text-slate-900 font-medium">{email}</Text>
       </View>
+
+      <Pressable
+        onPress={() => router.push('/doctors')}
+        className="bg-white rounded-2xl p-4 border border-slate-100 mb-4 max-w-[480px] flex-row items-center justify-between"
+      >
+        <View>
+          <Text className="text-slate-900 font-semibold text-sm">Kelola Profil Dokter</Text>
+          <Text className="text-slate-500 text-xs mt-0.5">Lihat, edit, atau hapus daftar dokter keluarga</Text>
+        </View>
+        <Text className="text-slate-400 text-lg">→</Text>
+      </Pressable>
 
       {/* Berbagi akses keluarga */}
       <View className="bg-white rounded-2xl p-4 border border-slate-100 mb-4 max-w-[480px]">
