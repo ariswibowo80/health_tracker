@@ -2,11 +2,11 @@
 import { useCallback, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { auth } from '../../services/firebaseConfig';
-import { ensureHouseholdAndGetActiveOwner } from '../../services/householdService';
-import { DoctorService } from '../../services/firestoreService';
-import { Doctor } from '../../types/health';
-import ScreenHeader from '../../components/ScreenHeader';
+import { auth } from '../services/firebaseConfig';
+import { ensureHouseholdAndGetActiveOwner } from '../services/householdService';
+import { DoctorService } from '../services/firestoreService';
+import { Doctor } from '../types/health';
+import ScreenHeader from '../components/ScreenHeader';
 
 type WithId<T> = T & { id: string };
 
