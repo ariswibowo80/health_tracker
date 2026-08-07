@@ -13,7 +13,7 @@ import {
   browserLocalPersistence,
   Auth,
 } from 'firebase/auth';
-import { getFirestore, initializeFirestore, Firestore } from 'firebase/firestore';
+import { initializeFirestore, Firestore } from 'firebase/firestore';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
@@ -42,10 +42,24 @@ if (Platform.OS === 'web') {
 }
 export const auth = authInstance;
 
-// Firestore: aktifkan cache long-polling agar stabil di WebView/emulator Android
+// Firestore:
+// - ignoreUndefinedProperties: true -> field bernilai `undefined` (mis. pola
+//   umum di form "field || undefined" untuk input opsional yang dikosongkan)
+//   otomatis DIABAIKAN oleh SDK, bukan bikin seluruh addDoc()/updateDoc()
+//   gagal dengan error "Unsupported field value: undefined". Firestore
+//   sendiri sebenarnya tidak pernah mendukung nilai `undefined` tersimpan
+//   (beda dengan `null`) — opsi ini hanya membuat SDK diam-diam membuang
+//   field itu alih-alih melempar exception, jadi konsisten dengan ekspektasi
+//   form-form di aplikasi ini.
+// - experimentalForceLongPolling: true (khusus native) -> stabil di
+//   WebView/emulator Android yang koneksinya kadang tidak mendukung gRPC
+//   streaming standar.
 export const db: Firestore =
   Platform.OS === 'web'
-    ? getFirestore(app)
+    ? initializeFirestore(app, {
+        ignoreUndefinedProperties: true,
+      })
     : initializeFirestore(app, {
+        ignoreUndefinedProperties: true,
         experimentalForceLongPolling: true,
       });
