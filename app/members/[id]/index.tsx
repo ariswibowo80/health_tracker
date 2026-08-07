@@ -44,10 +44,11 @@ export default function MemberDetailScreen() {
     if (!summary) return;
     setExporting(true);
     try {
-      const [episodes, doctorVisits, acuteMedications, labRecords, dailyLogs] = await Promise.all([
+      const [episodes, doctorVisits, acuteMedications, hospitalizations, labRecords, dailyLogs] = await Promise.all([
         SicknessService.listEpisodes(summary.member.id),
         SicknessService.listDoctorVisits(summary.member.id),
         SicknessService.listAcuteMedications(summary.member.id),
+        SicknessService.listHospitalizations(summary.member.id),
         LabService.listLabRecords(summary.member.id),
         LifestyleService.listDailyLogs(summary.member.id),
       ]);
@@ -56,6 +57,7 @@ export default function MemberDetailScreen() {
         episodes,
         doctorVisits,
         acuteMedications,
+        hospitalizations,
         labRecords,
         dailyLogs,
       };

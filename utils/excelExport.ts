@@ -20,6 +20,7 @@ import {
   SicknessEpisode,
   DoctorVisit,
   AcuteMedication,
+  Hospitalization,
   DailyLog,
 } from '../types/health';
 import { REFERENCE_RANGES, getLabStatus } from '../constants/referenceRanges';
@@ -32,6 +33,7 @@ export interface ExportBundle {
   episodes: WithId<SicknessEpisode>[];
   doctorVisits: WithId<DoctorVisit>[];
   acuteMedications: WithId<AcuteMedication>[];
+  hospitalizations: WithId<Hospitalization>[];
   dailyLogs: WithId<DailyLog>[];
 }
 
@@ -162,6 +164,13 @@ function buildSicknessSheet(bundle: ExportBundle) {
     cellStyled('Hasil Lab Penunjang', HEADER_STYLE),
     cellStyled('Obat Diberikan', HEADER_STYLE),
     cellStyled('Catatan Obat', HEADER_STYLE),
+    cellStyled('Rawat Inap - RS', HEADER_STYLE),
+    cellStyled('Rawat Inap - Kelas Kamar', HEADER_STYLE),
+    cellStyled('Rawat Inap - Tgl Masuk', HEADER_STYLE),
+    cellStyled('Rawat Inap - Lama (hari)', HEADER_STYLE),
+    cellStyled('Rawat Inap - Biaya Kamar/Hari', HEADER_STYLE),
+    cellStyled('Rawat Inap - Total Biaya Kamar', HEADER_STYLE),
+    cellStyled('Rawat Inap - Dokter Penanggung Jawab', HEADER_STYLE),
   ];
 
   const rows = bundle.episodes.map((ep) => {
@@ -171,6 +180,10 @@ function buildSicknessSheet(bundle: ExportBundle) {
       .map((m) => `${m.name} (${m.dose}, ${m.frequencyPerDay}x/hari${m.specialNotes ? ', ' + m.specialNotes : ''})`)
       .join('; ');
     const labSummary = (visit?.labTests ?? []).map((t) => `${t.testName}: ${t.result}`).join('; ');
+    const hospitalization = bundle.hospitalizations.find((h) => h.episodeId === ep.id);
+    const totalRoomCost = hospitalization
+      ? hospitalization.roomCostPerDay * hospitalization.lengthOfStayDays
+      : 0;
 
     return [
       cellStyled(ep.title),
@@ -187,6 +200,13 @@ function buildSicknessSheet(bundle: ExportBundle) {
       cellStyled(labSummary || '-'),
       cellStyled(medsSummary || '-'),
       cellStyled(meds.map((m) => m.specialNotes).filter(Boolean).join('; ') || '-'),
+      cellStyled(hospitalization?.hospitalName ?? '-'),
+      cellStyled(hospitalization?.roomClass ?? '-'),
+      cellStyled(hospitalization?.admissionDate ?? '-'),
+      cellStyled(hospitalization?.lengthOfStayDays ?? '-'),
+      cellStyled(hospitalization ? `Rp${hospitalization.roomCostPerDay.toLocaleString('id-ID')}` : '-'),
+      cellStyled(hospitalization ? `Rp${totalRoomCost.toLocaleString('id-ID')}` : '-'),
+      cellStyled(hospitalization?.treatingDoctors.map((d) => d.name).join(', ') || '-'),
     ];
   });
 

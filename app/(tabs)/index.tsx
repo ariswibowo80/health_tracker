@@ -56,11 +56,12 @@ export default function DashboardScreen() {
     try {
       const bundles: ExportBundle[] = await Promise.all(
         summaries.map(async (s) => {
-          const [episodes, doctorVisits, acuteMedications, labRecords, dailyLogs] =
+          const [episodes, doctorVisits, acuteMedications, hospitalizations, labRecords, dailyLogs] =
             await Promise.all([
               SicknessService.listEpisodes(s.member.id),
               SicknessService.listDoctorVisits(s.member.id),
               SicknessService.listAcuteMedications(s.member.id),
+              SicknessService.listHospitalizations(s.member.id),
               LabService.listLabRecords(s.member.id),
               LifestyleService.listDailyLogs(s.member.id),
             ]);
@@ -69,6 +70,7 @@ export default function DashboardScreen() {
             episodes,
             doctorVisits,
             acuteMedications,
+            hospitalizations,
             labRecords,
             dailyLogs,
           };

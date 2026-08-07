@@ -41,6 +41,7 @@ import {
   SymptomLog,
   DoctorVisit,
   AcuteMedication,
+  Hospitalization,
   LabRecord,
   DailyLog,
   MaintenanceMedication,
@@ -182,6 +183,18 @@ export const SicknessService = {
 
   listAcuteMedications: (memberId: string) =>
     listDocs<AcuteMedication>(memberId, 'acuteMedications', 'startDate'),
+
+  addHospitalization: (memberId: string, data: Omit<Hospitalization, 'id'>) =>
+    createDoc(subcollection(memberId, 'hospitalizations'), data),
+
+  updateHospitalization: (memberId: string, id: string, data: Partial<Hospitalization>) =>
+    updateDocById(memberId, 'hospitalizations', id, data),
+
+  deleteHospitalization: (memberId: string, id: string) =>
+    deleteDocById(memberId, 'hospitalizations', id),
+
+  listHospitalizations: (memberId: string) =>
+    listDocs<Hospitalization>(memberId, 'hospitalizations', 'admissionDate'),
 
   deleteEpisode: (memberId: string, id: string) =>
     deleteDocById(memberId, 'sicknessEpisodes', id),

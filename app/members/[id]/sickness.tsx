@@ -7,7 +7,7 @@ import { auth } from '../../../services/firebaseConfig';
 import { ensureHouseholdAndGetActiveOwner } from '../../../services/householdService';
 import { SicknessService, DoctorService } from '../../../services/firestoreService';
 import {
-  SicknessEpisode, DoctorVisit, AcuteMedication, MedicationForm, Doctor,
+  SicknessEpisode, DoctorVisit, AcuteMedication, MedicationForm, Doctor, Hospitalization, TreatingDoctor,
 } from '../../../types/health';
 import ScreenHeader from '../../../components/ScreenHeader';
 import DoctorPicker from '../../../components/DoctorPicker';
@@ -27,6 +27,7 @@ export default function SicknessScreen() {
   const [episodes, setEpisodes] = useState<WithId<SicknessEpisode>[]>([]);
   const [visits, setVisits] = useState<WithId<DoctorVisit>[]>([]);
   const [meds, setMeds] = useState<WithId<AcuteMedication>[]>([]);
+  const [hospitalizations, setHospitalizations] = useState<WithId<Hospitalization>[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showNewEpisode, setShowNewEpisode] = useState(false);
@@ -49,13 +50,14 @@ export default function SicknessScreen() {
       const ownerUid = user ? await ensureHouseholdAndGetActiveOwner(user.uid, user.email) : null;
       setHouseholdOwnerUid(ownerUid);
 
-      const [ep, vs, md] = await Promise.all([
+      const [ep, vs, md, hs] = await Promise.all([
         SicknessService.listEpisodes(memberId),
         SicknessService.listDoctorVisits(memberId),
         SicknessService.listAcuteMedications(memberId),
+        SicknessService.listHospitalizations(memberId),
         ownerUid ? loadDoctors(ownerUid) : Promise.resolve(),
       ]);
-      setEpisodes(ep); setVisits(vs); setMeds(md);
+      setEpisodes(ep); setVisits(vs); setMeds(md); setHospitalizations(hs);
     } finally {
       setLoading(false);
     }
@@ -173,6 +175,7 @@ export default function SicknessScreen() {
               householdOwnerUid={householdOwnerUid}
               visits={visits.filter((v) => v.episodeId === ep.id)}
               meds={meds.filter((m) => m.episodeId === ep.id)}
+              hospitalizations={hospitalizations.filter((h) => h.episodeId === ep.id)}
               expanded={expandedId === ep.id}
               onToggle={() => setExpandedId(expandedId === ep.id ? null : ep.id)}
               onMarkRecovered={() => handleMarkRecovered(ep)}
@@ -191,7 +194,7 @@ export default function SicknessScreen() {
 /* ------------------------------------------------------------------ */
 
 function EpisodeCard({
-  episode, memberId, doctors, householdOwnerUid, visits, meds, expanded,
+  episode, memberId, doctors, householdOwnerUid, visits, meds, hospitalizations, expanded,
   onToggle, onMarkRecovered, onEditEpisode, onDataChanged, onDoctorCreated,
 }: {
   episode: WithId<SicknessEpisode>;
@@ -200,6 +203,7 @@ function EpisodeCard({
   householdOwnerUid: string | null;
   visits: WithId<DoctorVisit>[];
   meds: WithId<AcuteMedication>[];
+  hospitalizations: WithId<Hospitalization>[];
   expanded: boolean;
   onToggle: () => void;
   onMarkRecovered: () => void;
@@ -211,6 +215,8 @@ function EpisodeCard({
   const [editingVisit, setEditingVisit] = useState<WithId<DoctorVisit> | null>(null);
   const [showMedForm, setShowMedForm] = useState(false);
   const [editingMed, setEditingMed] = useState<WithId<AcuteMedication> | null>(null);
+  const [showHospitalForm, setShowHospitalForm] = useState(false);
+  const [editingHospital, setEditingHospital] = useState<WithId<Hospitalization> | null>(null);
 
   return (
     <View className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
@@ -283,6 +289,63 @@ function EpisodeCard({
               doctors={doctors}
               householdOwnerUid={householdOwnerUid}
               onSaved={() => { setShowVisitForm(false); onDataChanged(); }}
+              onDoctorCreated={onDoctorCreated}
+            />
+          )}
+
+          {/* Rawat Inap */}
+          <Text className="text-slate-700 text-xs font-semibold mb-2 mt-2">Rawat Inap</Text>
+          {hospitalizations.map((h) => {
+            const totalBiayaKamar = h.roomCostPerDay * h.lengthOfStayDays;
+            return (
+              <View key={h.id} className="bg-slate-50 rounded-lg p-2.5 mb-2">
+                <View className="flex-row justify-between items-start">
+                  <View className="flex-1">
+                    <Text className="text-slate-900 text-xs font-medium">
+                      {h.hospitalName} · {h.roomClass}
+                    </Text>
+                    <Text className="text-slate-500 text-[11px]">
+                      Masuk {h.admissionDate} · {h.lengthOfStayDays} hari
+                      {h.dischargeDate ? ` (keluar ${h.dischargeDate})` : ' (masih dirawat)'}
+                    </Text>
+                    <Text className="text-slate-500 text-[11px]">
+                      Rp{h.roomCostPerDay.toLocaleString('id-ID')}/hari · Total kamar Rp{totalBiayaKamar.toLocaleString('id-ID')}
+                    </Text>
+                    {h.treatingDoctors.length > 0 && (
+                      <Text className="text-slate-500 text-[11px] mt-0.5">
+                        Dokter: {h.treatingDoctors.map((d) => d.name).join(', ')}
+                      </Text>
+                    )}
+                  </View>
+                  <Pressable onPress={() => { setEditingHospital(h); setShowHospitalForm(false); }} className="ml-2 px-2 py-1">
+                    <Text className="text-teal-700 text-[11px]">Edit</Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })}
+          {editingHospital && (
+            <HospitalizationForm
+              memberId={memberId}
+              episodeId={episode.id}
+              doctors={doctors}
+              householdOwnerUid={householdOwnerUid}
+              existing={editingHospital}
+              onSaved={() => { setEditingHospital(null); onDataChanged(); }}
+              onCancel={() => setEditingHospital(null)}
+              onDoctorCreated={onDoctorCreated}
+            />
+          )}
+          <Pressable onPress={() => { setShowHospitalForm(!showHospitalForm); setEditingHospital(null); }} className="mb-3">
+            <Text className="text-teal-700 text-xs">{showHospitalForm ? 'Batal' : '+ Tambah Data Rawat Inap'}</Text>
+          </Pressable>
+          {showHospitalForm && (
+            <HospitalizationForm
+              memberId={memberId}
+              episodeId={episode.id}
+              doctors={doctors}
+              householdOwnerUid={householdOwnerUid}
+              onSaved={() => { setShowHospitalForm(false); onDataChanged(); }}
               onDoctorCreated={onDoctorCreated}
             />
           )}
@@ -414,6 +477,182 @@ function DoctorVisitForm({
         )}
         <Pressable onPress={handleSave} disabled={saving} className="flex-1 bg-teal-700 rounded-lg py-2 items-center disabled:opacity-60">
           <Text className="text-white text-xs font-medium">{saving ? 'Menyimpan...' : existing ? 'Simpan Perubahan' : 'Simpan Kunjungan'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const ROOM_CLASS_OPTIONS = ['VIP', 'Kelas 1', 'Kelas 2', 'Kelas 3', 'ICU', 'NICU', 'HCU'];
+
+function HospitalizationForm({
+  memberId, episodeId, doctors, householdOwnerUid, existing, onSaved, onCancel, onDoctorCreated,
+}: {
+  memberId: string;
+  episodeId: string;
+  doctors: WithId<Doctor>[];
+  householdOwnerUid: string | null;
+  existing?: WithId<Hospitalization>;
+  onSaved: () => void;
+  onCancel?: () => void;
+  onDoctorCreated?: () => void;
+}) {
+  const [hospitalName, setHospitalName] = useState(existing?.hospitalName ?? '');
+  const [roomClass, setRoomClass] = useState(existing?.roomClass ?? '');
+  const [roomCostPerDay, setRoomCostPerDay] = useState(String(existing?.roomCostPerDay ?? ''));
+  const [admissionDate, setAdmissionDate] = useState(existing?.admissionDate ?? todayISO());
+  const [dischargeDate, setDischargeDate] = useState(existing?.dischargeDate ?? '');
+  const [lengthOfStayDays, setLengthOfStayDays] = useState(String(existing?.lengthOfStayDays ?? '1'));
+  const [notes, setNotes] = useState(existing?.notes ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const [treatingDoctors, setTreatingDoctors] = useState<TreatingDoctor[]>(existing?.treatingDoctors ?? []);
+  const [doctorInput, setDoctorInput] = useState('');
+  const [pendingDoctorId, setPendingDoctorId] = useState<string | undefined>(undefined);
+
+  function handleSelectDoctor(doctor: WithId<Doctor>) {
+    setPendingDoctorId(doctor.id);
+    setDoctorInput(doctor.name);
+  }
+
+  async function handleCreateDoctor(data: Omit<Doctor, 'createdAt'>) {
+    const id = await DoctorService.create(data);
+    onDoctorCreated?.();
+    const created: WithId<Doctor> = { id, ...data, createdAt: Date.now() };
+    setPendingDoctorId(created.id);
+    return created;
+  }
+
+  function handleAddTreatingDoctor() {
+    const name = doctorInput.trim();
+    if (!name) return;
+    if (treatingDoctors.some((d) => d.name.toLowerCase() === name.toLowerCase())) {
+      setDoctorInput('');
+      setPendingDoctorId(undefined);
+      return;
+    }
+    setTreatingDoctors((prev) => [...prev, { doctorId: pendingDoctorId, name }]);
+    setDoctorInput('');
+    setPendingDoctorId(undefined);
+  }
+
+  function handleRemoveTreatingDoctor(name: string) {
+    setTreatingDoctors((prev) => prev.filter((d) => d.name !== name));
+  }
+
+  // Auto-hitung lama dirawat dari selisih tanggal masuk & keluar (kalau tanggal keluar diisi)
+  function handleDischargeDateChange(text: string) {
+    setDischargeDate(text);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(admissionDate) && /^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      const days = Math.max(
+        1,
+        Math.round((new Date(text).getTime() - new Date(admissionDate).getTime()) / 86400000)
+      );
+      setLengthOfStayDays(String(days));
+    }
+  }
+
+  async function handleSave() {
+    if (!hospitalName.trim() || !roomClass.trim() || !admissionDate) return;
+    setSaving(true);
+    try {
+      const payload = {
+        memberId,
+        episodeId,
+        hospitalName: hospitalName.trim(),
+        roomClass: roomClass.trim(),
+        roomCostPerDay: Number(roomCostPerDay) || 0,
+        admissionDate,
+        dischargeDate: dischargeDate || undefined,
+        lengthOfStayDays: Number(lengthOfStayDays) || 1,
+        treatingDoctors,
+        notes: notes || undefined,
+      };
+      if (existing) {
+        await SicknessService.updateHospitalization(memberId, existing.id, payload);
+      } else {
+        await SicknessService.addHospitalization(memberId, payload);
+      }
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <View className="bg-slate-50 rounded-lg p-3 mb-3 gap-2">
+      <TextInput value={hospitalName} onChangeText={setHospitalName} placeholder="Nama rumah sakit, mis. RS Grha Kedoya" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+
+      <Text className="text-slate-500 text-[10px]">Kelas Kamar</Text>
+      <View className="flex-row flex-wrap gap-1.5">
+        {ROOM_CLASS_OPTIONS.map((c) => (
+          <Pressable key={c} onPress={() => setRoomClass(c)} className={`px-2 py-1 rounded-md border ${roomClass === c ? 'bg-teal-700 border-teal-700' : 'border-slate-200'}`}>
+            <Text className={`text-[10px] ${roomClass === c ? 'text-white' : 'text-slate-600'}`}>{c}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <TextInput value={roomClass} onChangeText={setRoomClass} placeholder="Atau ketik kelas kamar lainnya" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+
+      <TextInput value={roomCostPerDay} onChangeText={setRoomCostPerDay} keyboardType="number-pad" placeholder="Biaya kamar per hari (Rp)" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+
+      <View className="flex-row gap-2">
+        <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Tanggal Masuk</Text>
+          <TextInput value={admissionDate} onChangeText={setAdmissionDate} placeholder="YYYY-MM-DD" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
+        <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Tanggal Keluar (opsional)</Text>
+          <TextInput value={dischargeDate} onChangeText={handleDischargeDateChange} placeholder="Kosongkan jika masih dirawat" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
+      </View>
+      <View>
+        <Text className="text-slate-500 text-[10px] mb-1">Lama Dirawat (hari)</Text>
+        <TextInput value={lengthOfStayDays} onChangeText={setLengthOfStayDays} keyboardType="number-pad" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-24" />
+      </View>
+
+      <Text className="text-slate-500 text-[10px] mt-1">Dokter yang Menangani (bisa lebih dari satu)</Text>
+      {treatingDoctors.length > 0 && (
+        <View className="flex-row flex-wrap gap-1.5 mb-1">
+          {treatingDoctors.map((d) => (
+            <View key={d.name} className="flex-row items-center bg-teal-50 rounded-full pl-2.5 pr-1.5 py-1">
+              <Text className="text-teal-700 text-[11px] mr-1">{d.name}</Text>
+              <Pressable onPress={() => handleRemoveTreatingDoctor(d.name)} hitSlop={6}>
+                <Text className="text-teal-700 text-[11px] font-bold">✕</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      )}
+      <View className="flex-row gap-2 items-start">
+        <View className="flex-1">
+          {householdOwnerUid ? (
+            <DoctorPicker
+              doctors={doctors}
+              value={doctorInput}
+              onChangeText={(t) => { setDoctorInput(t); setPendingDoctorId(undefined); }}
+              onSelectDoctor={handleSelectDoctor}
+              onCreateDoctor={handleCreateDoctor}
+              householdOwnerUid={householdOwnerUid}
+            />
+          ) : (
+            <TextInput value={doctorInput} onChangeText={setDoctorInput} placeholder="Nama dokter" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+          )}
+        </View>
+        <Pressable onPress={handleAddTreatingDoctor} className="bg-slate-700 rounded-lg px-3 py-1.5">
+          <Text className="text-white text-xs">+ Tambah</Text>
+        </Pressable>
+      </View>
+
+      <TextInput value={notes} onChangeText={setNotes} placeholder="Catatan tambahan (opsional)" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs mt-1" />
+
+      <View className="flex-row gap-2 mt-1">
+        {onCancel && (
+          <Pressable onPress={onCancel} className="flex-1 border border-slate-200 rounded-lg py-2 items-center">
+            <Text className="text-slate-600 text-xs">Batal</Text>
+          </Pressable>
+        )}
+        <Pressable onPress={handleSave} disabled={saving} className="flex-1 bg-teal-700 rounded-lg py-2 items-center disabled:opacity-60">
+          <Text className="text-white text-xs font-medium">{saving ? 'Menyimpan...' : existing ? 'Simpan Perubahan' : 'Simpan Rawat Inap'}</Text>
         </Pressable>
       </View>
     </View>
