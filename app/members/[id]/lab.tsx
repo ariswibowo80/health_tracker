@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 // app/members/[id]/lab.tsx
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { LabService } from '../../../services/firestoreService';
 import { LabRecord, LabParameterKey } from '../../../types/health';
@@ -27,6 +27,7 @@ export default function LabScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [trendParam, setTrendParam] = useState<LabParameterKey>('glukosaPuasa');
 
   const [date, setDate] = useState(todayISO());
@@ -49,7 +50,41 @@ export default function LabScreen() {
     load();
   }, [load]);
 
-  async function handleSave() {
+  function resetForm() {
+    setDate(todayISO());
+    setSource('MCU');
+    setFacility('');
+    setValues({});
+    setNotes('');
+  }
+
+  function startCreate() {
+    setEditingId(null);
+    resetForm();
+    setShowForm(!showForm);
+  }
+
+  function startEdit(record: WithId<LabRecord>) {
+    setShowForm(false);
+    setEditingId(record.id);
+    setDate(record.date);
+    setSource(record.source);
+    setFacility(record.facility ?? '');
+    const stringValues: Partial<Record<LabParameterKey, string>> = {};
+    for (const key of PARAM_ORDER) {
+      const v = record.values[key];
+      if (v !== undefined) stringValues[key] = String(v);
+    }
+    setValues(stringValues);
+    setNotes(record.notes ?? '');
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    resetForm();
+  }
+
+  async function handleSubmit() {
     if (!memberId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
     setSaving(true);
     try {
@@ -58,19 +93,46 @@ export default function LabScreen() {
         const raw = values[key];
         if (raw && !isNaN(Number(raw))) numericValues[key] = Number(raw);
       }
-      await LabService.addLabRecord(memberId, {
+      const payload = {
         memberId,
         date,
         source,
         facility: facility || undefined,
         values: numericValues,
         notes: notes || undefined,
-      });
-      setDate(todayISO()); setFacility(''); setValues({}); setNotes(''); setShowForm(false);
+      };
+
+      if (editingId) {
+        await LabService.updateLabRecord(memberId, editingId, payload);
+        setEditingId(null);
+      } else {
+        await LabService.addLabRecord(memberId, payload);
+        setShowForm(false);
+      }
+      resetForm();
       await load();
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleDelete(record: WithId<LabRecord>) {
+    const doDelete = async () => {
+      await LabService.deleteLabRecord(memberId!, record.id);
+      if (editingId === record.id) cancelEdit();
+      await load();
+    };
+
+    const warning = `Hapus data lab tanggal ${record.date} (${record.source})? Tindakan ini tidak bisa dibatalkan.`;
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(warning)) await doDelete();
+      return;
+    }
+    Alert.alert('Hapus Data Lab', warning, [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Hapus', style: 'destructive', onPress: doDelete },
+    ]);
   }
 
   // Data grafik tren untuk parameter yang dipilih, urut lama -> baru
@@ -80,6 +142,7 @@ export default function LabScreen() {
     .map((r) => ({ date: shortDate(r.date), value: r.values[trendParam] as number }));
 
   const trendRef = REFERENCE_RANGES[trendParam];
+  const isFormOpen = showForm || editingId !== null;
 
   return (
     <View className="flex-1 bg-slate-50">
@@ -116,18 +179,24 @@ export default function LabScreen() {
       </View>
 
       {/* Tombol tambah */}
-      <Pressable
-        onPress={() => setShowForm(!showForm)}
-        className="bg-teal-700 rounded-xl py-3 items-center mb-4 max-w-[220px]"
-      >
-        <Text className="text-white font-medium text-sm">
-          {showForm ? 'Tutup Form' : '+ Tambah Hasil Lab'}
-        </Text>
-      </Pressable>
+      {!editingId && (
+        <Pressable
+          onPress={startCreate}
+          className="bg-teal-700 rounded-xl py-3 items-center mb-4 max-w-[220px]"
+        >
+          <Text className="text-white font-medium text-sm">
+            {showForm ? 'Tutup Form' : '+ Tambah Hasil Lab'}
+          </Text>
+        </Pressable>
+      )}
 
-      {/* Form input */}
-      {showForm && (
+      {/* Form input / edit */}
+      {isFormOpen && (
         <View className="bg-white rounded-2xl p-4 border border-slate-100 mb-5">
+          <Text className="text-slate-900 font-semibold text-sm mb-3">
+            {editingId ? 'Edit Hasil Lab' : 'Hasil Lab Baru'}
+          </Text>
+
           <Field label="Tanggal (YYYY-MM-DD)">
             <TextInput value={date} onChangeText={setDate} placeholder="2026-07-20"
               className="border border-slate-200 rounded-xl px-3 py-2 text-slate-900" />
@@ -172,12 +241,21 @@ export default function LabScreen() {
               className="border border-slate-200 rounded-xl px-3 py-2 text-slate-900" />
           </Field>
 
-          <Pressable onPress={handleSave} disabled={saving}
-            className="bg-teal-700 rounded-xl py-3 items-center mt-2 disabled:opacity-60">
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-              <Text className="text-white font-semibold text-sm">Simpan Hasil Lab</Text>
+          <View className="flex-row gap-2 mt-2">
+            {editingId && (
+              <Pressable onPress={cancelEdit} className="flex-1 border border-slate-200 rounded-xl py-3 items-center">
+                <Text className="text-slate-600 text-sm">Batal</Text>
+              </Pressable>
             )}
-          </Pressable>
+            <Pressable onPress={handleSubmit} disabled={saving}
+              className="flex-1 bg-teal-700 rounded-xl py-3 items-center disabled:opacity-60">
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : (
+                <Text className="text-white font-semibold text-sm">
+                  {editingId ? 'Simpan Perubahan' : 'Simpan Hasil Lab'}
+                </Text>
+              )}
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -189,9 +267,19 @@ export default function LabScreen() {
         <View className="gap-2">
           {records.map((r) => (
             <View key={r.id} className="bg-white rounded-xl p-3 border border-slate-100">
-              <View className="flex-row justify-between mb-2">
-                <Text className="text-slate-900 font-medium text-sm">{r.date} · {r.source}</Text>
-                {r.facility && <Text className="text-slate-400 text-xs">{r.facility}</Text>}
+              <View className="flex-row justify-between items-start mb-2">
+                <View>
+                  <Text className="text-slate-900 font-medium text-sm">{r.date} · {r.source}</Text>
+                  {r.facility && <Text className="text-slate-400 text-xs">{r.facility}</Text>}
+                </View>
+                <View className="flex-row gap-3">
+                  <Pressable onPress={() => startEdit(r)}>
+                    <Text className="text-teal-700 text-xs font-medium">Edit</Text>
+                  </Pressable>
+                  <Pressable onPress={() => handleDelete(r)}>
+                    <Text className="text-red-600 text-xs font-medium">Hapus</Text>
+                  </Pressable>
+                </View>
               </View>
               <View className="flex-row flex-wrap gap-2">
                 {Object.entries(r.values).map(([key, val]) => {
@@ -207,6 +295,7 @@ export default function LabScreen() {
                   );
                 })}
               </View>
+              {r.notes && <Text className="text-slate-400 text-[11px] mt-2">Catatan: {r.notes}</Text>}
             </View>
           ))}
         </View>

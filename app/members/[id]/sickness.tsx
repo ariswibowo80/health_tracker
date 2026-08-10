@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 // app/members/[id]/sickness.tsx
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { auth } from '../../../services/firebaseConfig';
 import { ensureHouseholdAndGetActiveOwner } from '../../../services/householdService';
@@ -111,6 +111,35 @@ export default function SicknessScreen() {
     await load();
   }
 
+  async function handleDeleteEpisode(ep: WithId<SicknessEpisode>) {
+    const doDelete = async () => {
+      const relatedVisits = visits.filter((v) => v.episodeId === ep.id);
+      const relatedMeds = meds.filter((m) => m.episodeId === ep.id);
+      const relatedHospitalizations = hospitalizations.filter((h) => h.episodeId === ep.id);
+      await Promise.all([
+        ...relatedVisits.map((v) => SicknessService.deleteDoctorVisit(memberId!, v.id)),
+        ...relatedMeds.map((m) => SicknessService.deleteAcuteMedication(memberId!, m.id)),
+        ...relatedHospitalizations.map((h) => SicknessService.deleteHospitalization(memberId!, h.id)),
+      ]);
+      await SicknessService.deleteEpisode(memberId!, ep.id);
+      if (editingEpisodeId === ep.id) { setEditingEpisodeId(null); resetEpisodeForm(); }
+      await load();
+    };
+
+    const warning = `Hapus episode "${ep.title}"? Seluruh kunjungan dokter, obat, dan data rawat inap yang tercatat di dalam episode ini akan ikut terhapus permanen.`;
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(warning)) {
+        await doDelete();
+      }
+      return;
+    }
+    Alert.alert('Hapus Episode', warning, [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Hapus', style: 'destructive', onPress: doDelete },
+    ]);
+  }
+
   return (
     <View className="flex-1 bg-slate-50">
       <ScreenHeader title="Catatan Sakit" fallbackHref={`/members/${memberId}`} />
@@ -180,6 +209,7 @@ export default function SicknessScreen() {
               onToggle={() => setExpandedId(expandedId === ep.id ? null : ep.id)}
               onMarkRecovered={() => handleMarkRecovered(ep)}
               onEditEpisode={() => startEditEpisode(ep)}
+              onDeleteEpisode={() => handleDeleteEpisode(ep)}
               onDataChanged={load}
               onDoctorCreated={() => householdOwnerUid && loadDoctors(householdOwnerUid)}
             />
@@ -195,7 +225,7 @@ export default function SicknessScreen() {
 
 function EpisodeCard({
   episode, memberId, doctors, householdOwnerUid, visits, meds, hospitalizations, expanded,
-  onToggle, onMarkRecovered, onEditEpisode, onDataChanged, onDoctorCreated,
+  onToggle, onMarkRecovered, onEditEpisode, onDeleteEpisode, onDataChanged, onDoctorCreated,
 }: {
   episode: WithId<SicknessEpisode>;
   memberId: string;
@@ -208,6 +238,7 @@ function EpisodeCard({
   onToggle: () => void;
   onMarkRecovered: () => void;
   onEditEpisode: () => void;
+  onDeleteEpisode: () => void;
   onDataChanged: () => void;
   onDoctorCreated: () => void;
 }) {
@@ -244,6 +275,9 @@ function EpisodeCard({
             )}
             <Pressable onPress={onEditEpisode} className="flex-1 bg-slate-50 rounded-lg py-2 items-center">
               <Text className="text-slate-600 text-xs font-medium">✏️ Edit Episode</Text>
+            </Pressable>
+            <Pressable onPress={onDeleteEpisode} className="flex-1 bg-red-50 rounded-lg py-2 items-center">
+              <Text className="text-red-600 text-xs font-medium">🗑️ Hapus Episode</Text>
             </Pressable>
           </View>
 
