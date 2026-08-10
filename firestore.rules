@@ -1,8 +1,6 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
     // Helper: apakah uid ini anggota household (households/{householdOwnerUid})?
     function isHouseholdMember(householdOwnerUid) {
       return request.auth != null &&
@@ -12,21 +10,38 @@ service cloud.firestore {
     }
 
     // households/{householdOwnerUid}: dokumen ID = uid pembuat pertama.
-    // - Siapa pun anggotanya (memberUids) boleh baca.
-    // - Hanya pembuatnya sendiri yang boleh membuat dokumen ini (bootstrap).
-    // - Update diperbolehkan oleh anggota yang sudah ada (mis. menambah
-    //   memberEmails saat mengundang) ATAU oleh uid baru yang menambahkan
-    //   dirinya sendiri ke memberUids (proses klaim undangan).
-    //   CATATAN KEAMANAN: model ini memverifikasi kecocokan email di sisi
-    //   klien (claimInvitation mencari household yang memuat email user)
-    //   sebelum menulis; rule ini tidak bisa memvalidasi ulang kecocokan
-    //   email secara atomic tanpa Cloud Functions. Untuk aplikasi keluarga
-    //   pribadi ini dianggap risiko yang wajar; jangan bagikan project
-    //   Firebase ini ke pihak tak dikenal.
     match /households/{ownerUid} {
-      allow read: if request.auth != null &&
-                    (resource == null || request.auth.uid in resource.data.memberUids);
+      // GET (baca 1 dokumen langsung via ID yang sudah diketahui):
+      // hanya anggota yang sudah terdaftar (memberUids) yang boleh.
+      // Dipakai saat aplikasi sudah tahu household mana yang aktif untuk
+      // uid ini (mis. getHousehold() setelah ensureHouseholdAndGetActiveOwner).
+      allow get: if request.auth != null &&
+                   (resource == null || request.auth.uid in resource.data.memberUids);
+
+      // LIST (query mencari household lewat email, dipakai saat KLAIM
+      // UNDANGAN — di titik ini uid pengklaim BELUM ada di memberUids, jadi
+      // tidak bisa disyaratkan seperti rule GET di atas; "circular" kalau
+      // dipaksakan sama). Sebagai gantinya, izinkan jika email TERVERIFIKASI
+      // milik akun yang sedang login (request.auth.token.email) memang
+      // tercantum di memberEmails dokumen tersebut — jadi user hanya bisa
+      // menemukan household yang benar-benar mengundang emailnya sendiri,
+      // tidak bisa dipakai untuk menjelajahi household orang lain.
+      allow list: if request.auth != null &&
+                    request.auth.token.email != null &&
+                    request.auth.token.email in resource.data.memberEmails;
+
       allow create: if request.auth != null && request.auth.uid == ownerUid;
+
+      // Update diperbolehkan oleh anggota yang sudah ada (mis. menambah
+      // memberEmails saat mengundang) ATAU oleh uid baru yang menambahkan
+      // dirinya sendiri ke memberUids (proses klaim undangan tahap 2, setelah
+      // household-nya berhasil ditemukan lewat rule LIST di atas).
+      // CATATAN KEAMANAN: model ini memverifikasi kecocokan email di sisi
+      // klien (claimInvitation mencari household yang memuat email user)
+      // sebelum menulis; rule ini tidak bisa memvalidasi ulang kecocokan
+      // email secara atomic tanpa Cloud Functions. Untuk aplikasi keluarga
+      // pribadi ini dianggap risiko yang wajar; jangan bagikan project
+      // Firebase ini ke pihak tak dikenal.
       allow update: if request.auth != null && (
                       request.auth.uid in resource.data.memberUids ||
                       request.auth.uid in request.resource.data.memberUids
