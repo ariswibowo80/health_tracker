@@ -6,6 +6,7 @@ import { auth } from '../../services/firebaseConfig';
 import { ensureHouseholdAndGetActiveOwner } from '../../services/householdService';
 import { getFamilyMembers } from '../../services/firestoreService';
 import { FamilyMember } from '../../types/health';
+import { formatAge } from '../../utils/age';
 
 type WithId<T> = T & { id: string };
 
@@ -67,7 +68,7 @@ export default function MembersScreen() {
               </View>
               <View>
                 <Text className="text-slate-900 font-semibold">{m.name}</Text>
-                <Text className="text-slate-500 text-xs capitalize">{m.role}</Text>
+                <Text className="text-slate-500 text-xs capitalize">{m.role} · {formatAge(m.birthDate)}</Text>
               </View>
             </Pressable>
           ))}

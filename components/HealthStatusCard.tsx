@@ -3,20 +3,16 @@ import { View, Text, Pressable } from 'react-native';
 import { MemberHealthSummary } from '../services/firestoreService';
 import { getLabStatus, STATUS_COLOR_MAP, REFERENCE_RANGES } from '../constants/referenceRanges';
 import { LabParameterKey } from '../types/health';
+import { formatAge } from '../utils/age';
 
 interface Props {
   summary: MemberHealthSummary;
   onPress?: () => void;
 }
 
-function calcAge(birthDate: string) {
-  const diff = Date.now() - new Date(birthDate).getTime();
-  return Math.floor(diff / (365.25 * 24 * 3600 * 1000));
-}
-
 export default function HealthStatusCard({ summary, onPress }: Props) {
   const { member, activeSickness, latestLab, lowStockMeds, latestWeight } = summary;
-  const age = calcAge(member.birthDate);
+  const ageLabel = formatAge(member.birthDate);
 
   // Ambil maksimal 3 parameter lab paling relevan untuk preview cepat
   const previewKeys: LabParameterKey[] = member.role === 'anak'
@@ -41,7 +37,7 @@ export default function HealthStatusCard({ summary, onPress }: Props) {
         <View className="flex-1">
           <Text className="text-slate-900 font-semibold text-base">{member.name}</Text>
           <Text className="text-slate-500 text-xs">
-            {member.role === 'anak' ? 'Anak' : member.role === 'lansia' ? 'Lansia' : 'Dewasa'} · {age} th
+            {member.role === 'anak' ? 'Anak' : member.role === 'lansia' ? 'Lansia' : 'Dewasa'} · {ageLabel}
           </Text>
         </View>
 
