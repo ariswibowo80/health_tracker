@@ -38,13 +38,31 @@ export interface FamilyMember {
   createdAt: number;
 }
 
+export type DayOfWeek = 'senin' | 'selasa' | 'rabu' | 'kamis' | 'jumat' | 'sabtu' | 'minggu';
+export const DAY_ORDER: DayOfWeek[] = ['senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu', 'minggu'];
+export const DAY_LABELS: Record<DayOfWeek, string> = {
+  senin: 'Senin', selasa: 'Selasa', rabu: 'Rabu', kamis: 'Kamis',
+  jumat: 'Jumat', sabtu: 'Sabtu', minggu: 'Minggu',
+};
+
+export interface ScheduleSlot {
+  start: string; // format "HH:MM", mis. "09:00"
+  end: string;   // format "HH:MM", mis. "12:00"
+}
+
+/** Jadwal praktik terstruktur per hari — tiap hari bisa punya lebih dari 1 sesi. */
+export type WeeklySchedule = Partial<Record<DayOfWeek, ScheduleSlot[]>>;
+
 /** Profil dokter, dibagikan di seluruh household (bukan per anggota keluarga). */
 export interface Doctor {
   ownerUid: string; // = ID household, sama seperti FamilyMember.ownerUid
   name: string;
   specialization?: string;   // mis. "Sp.A (Dokter Anak)"
   practiceLocation?: string; // mis. "RS Grha Kedoya"
-  practiceSchedule?: string; // teks bebas, mis. "Senin & Rabu 18:00-20:00"
+  weeklySchedule?: WeeklySchedule; // jadwal terstruktur per hari (fitur baru)
+  practiceSchedule?: string; // LEGACY: teks bebas dari sebelum weeklySchedule ada.
+                              // Dipertahankan sebagai fallback tampilan untuk data lama
+                              // yang belum diisi ulang lewat weeklySchedule.
   phone?: string;
   createdAt: number;
 }

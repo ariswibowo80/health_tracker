@@ -5,8 +5,9 @@ import { useFocusEffect } from 'expo-router';
 import { auth } from '../services/firebaseConfig';
 import { ensureHouseholdAndGetActiveOwner } from '../services/householdService';
 import { DoctorService } from '../services/firestoreService';
-import { Doctor } from '../types/health';
+import { Doctor, WeeklySchedule } from '../types/health';
 import ScreenHeader from '../components/ScreenHeader';
+import { WeeklyScheduleEditor, WeeklyScheduleView, isScheduleValid } from '../components/WeeklySchedule';
 
 type WithId<T> = T & { id: string };
 
@@ -94,9 +95,6 @@ export default function DoctorsScreen() {
                     {d.practiceLocation && (
                       <Text className="text-slate-500 text-xs">📍 {d.practiceLocation}</Text>
                     )}
-                    {d.practiceSchedule && (
-                      <Text className="text-slate-500 text-xs">🕒 {d.practiceSchedule}</Text>
-                    )}
                     {d.phone && <Text className="text-slate-500 text-xs">📞 {d.phone}</Text>}
                   </View>
                   <View className="flex-row gap-3 ml-2">
@@ -108,6 +106,7 @@ export default function DoctorsScreen() {
                     </Pressable>
                   </View>
                 </View>
+                <WeeklyScheduleView schedule={d.weeklySchedule ?? d.practiceSchedule} />
               </View>
             ))}
           </View>
@@ -131,12 +130,18 @@ function DoctorForm({
   const [name, setName] = useState(existing?.name ?? '');
   const [specialization, setSpecialization] = useState(existing?.specialization ?? '');
   const [practiceLocation, setPracticeLocation] = useState(existing?.practiceLocation ?? '');
-  const [practiceSchedule, setPracticeSchedule] = useState(existing?.practiceSchedule ?? '');
+  const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>(existing?.weeklySchedule ?? {});
   const [phone, setPhone] = useState(existing?.phone ?? '');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSave() {
     if (!name.trim()) return;
+    if (!isScheduleValid(weeklySchedule)) {
+      setError('Format jam ada yang salah. Gunakan format HH:MM, mis. 09:00.');
+      return;
+    }
+    setError(null);
     setSaving(true);
     try {
       const payload = {
@@ -144,7 +149,7 @@ function DoctorForm({
         name: name.trim(),
         specialization: specialization || undefined,
         practiceLocation: practiceLocation || undefined,
-        practiceSchedule: practiceSchedule || undefined,
+        weeklySchedule: Object.keys(weeklySchedule).length > 0 ? weeklySchedule : undefined,
         phone: phone || undefined,
       };
       if (existing) {
@@ -181,12 +186,7 @@ function DoctorForm({
         placeholder="Tempat praktik, mis. RS Grha Kedoya"
         className="border border-slate-200 rounded-xl px-3 py-2 text-sm"
       />
-      <TextInput
-        value={practiceSchedule}
-        onChangeText={setPracticeSchedule}
-        placeholder="Jadwal praktik, mis. Senin & Rabu 18:00-20:00"
-        className="border border-slate-200 rounded-xl px-3 py-2 text-sm"
-      />
+      <WeeklyScheduleEditor value={weeklySchedule} onChange={setWeeklySchedule} />
       <TextInput
         value={phone}
         onChangeText={setPhone}
@@ -194,6 +194,7 @@ function DoctorForm({
         placeholder="No. telepon (opsional)"
         className="border border-slate-200 rounded-xl px-3 py-2 text-sm"
       />
+      {error && <Text className="text-red-600 text-xs">{error}</Text>}
       <View className="flex-row gap-2 mt-1">
         <Pressable onPress={onCancel} className="flex-1 border border-slate-200 rounded-xl py-3 items-center">
           <Text className="text-slate-600 text-sm">Batal</Text>

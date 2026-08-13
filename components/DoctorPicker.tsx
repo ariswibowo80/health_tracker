@@ -1,7 +1,8 @@
 // components/DoctorPicker.tsx
 import { useMemo, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
-import { Doctor } from '../types/health';
+import { Doctor, WeeklySchedule } from '../types/health';
+import { WeeklyScheduleEditor, WeeklyScheduleView, isScheduleValid } from './WeeklySchedule';
 
 type WithId<T> = T & { id: string };
 
@@ -33,8 +34,9 @@ export default function DoctorPicker({
   // Form tambah dokter baru
   const [newSpecialization, setNewSpecialization] = useState('');
   const [newPractice, setNewPractice] = useState('');
-  const [newSchedule, setNewSchedule] = useState('');
+  const [newSchedule, setNewSchedule] = useState<WeeklySchedule>({});
   const [newPhone, setNewPhone] = useState('');
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const query = value.trim().toLowerCase();
   const matches = useMemo(() => {
@@ -54,13 +56,19 @@ export default function DoctorPicker({
   function handleStartNewDoctor() {
     setNewSpecialization('');
     setNewPractice('');
-    setNewSchedule('');
+    setNewSchedule({});
     setNewPhone('');
+    setScheduleError(null);
     setShowNewForm(true);
   }
 
   async function handleSaveNewDoctor() {
     if (!value.trim()) return;
+    if (!isScheduleValid(newSchedule)) {
+      setScheduleError('Format jam ada yang salah. Gunakan format HH:MM, mis. 09:00.');
+      return;
+    }
+    setScheduleError(null);
     setSaving(true);
     try {
       const payload: Omit<Doctor, 'createdAt'> = {
@@ -68,7 +76,7 @@ export default function DoctorPicker({
         name: value.trim(),
         specialization: newSpecialization || undefined,
         practiceLocation: newPractice || undefined,
-        practiceSchedule: newSchedule || undefined,
+        weeklySchedule: Object.keys(newSchedule).length > 0 ? newSchedule : undefined,
         phone: newPhone || undefined,
       };
       const created = await onCreateDoctor(payload);
@@ -143,12 +151,8 @@ export default function DoctorPicker({
             placeholder="Tempat praktik, mis. RS Grha Kedoya"
             className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs"
           />
-          <TextInput
-            value={newSchedule}
-            onChangeText={setNewSchedule}
-            placeholder="Jadwal praktik, mis. Senin & Rabu 18:00-20:00"
-            className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs"
-          />
+          <WeeklyScheduleEditor value={newSchedule} onChange={setNewSchedule} />
+          {scheduleError && <Text className="text-red-600 text-[11px]">{scheduleError}</Text>}
           <TextInput
             value={newPhone}
             onChangeText={setNewPhone}
