@@ -20,28 +20,38 @@ export function WeeklyScheduleView({ schedule }: { schedule: WeeklySchedule | st
   if (activeDays.length === 0) return null;
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="rounded-lg border border-slate-100 overflow-hidden">
-      <View>
-        <View className="flex-row bg-teal-700">
-          {DAY_ORDER.map((d) => (
-            <View key={d} className="w-24 px-2 py-2 border-r border-teal-600 last:border-r-0">
-              <Text className="text-white text-[11px] font-semibold text-center">{DAY_LABELS[d]}</Text>
-            </View>
-          ))}
-        </View>
-        <View className="flex-row bg-white">
-          {DAY_ORDER.map((d) => (
-            <View key={d} className="w-24 px-2 py-2 border-r border-slate-100 last:border-r-0 gap-1">
-              {(schedule[d] ?? []).map((slot, i) => (
-                <Text key={i} className="text-slate-700 text-[11px] text-center">
-                  {slot.start} - {slot.end}
-                </Text>
+    <View>
+      {/* PENTING: rounding/border/overflow-hidden HARUS di View pembungkus
+          ini (statis), BUKAN di ScrollView-nya sendiri — kalau overflow-hidden
+          ditaruh langsung di ScrollView, itu bentrok dengan mekanisme scroll
+          bawaan React Native Web dan bikin konten kepotong tanpa bisa
+          di-scroll (bug yang sempat terjadi). */}
+      <View className="rounded-lg border border-slate-100 overflow-hidden">
+        <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+          <View>
+            <View className="flex-row bg-teal-700">
+              {DAY_ORDER.map((d) => (
+                <View key={d} className="w-24 px-2 py-2 border-r border-teal-600 last:border-r-0">
+                  <Text className="text-white text-[11px] font-semibold text-center">{DAY_LABELS[d]}</Text>
+                </View>
               ))}
             </View>
-          ))}
-        </View>
+            <View className="flex-row bg-white">
+              {DAY_ORDER.map((d) => (
+                <View key={d} className="w-24 px-2 py-2 border-r border-slate-100 last:border-r-0 gap-1">
+                  {(schedule[d] ?? []).map((slot, i) => (
+                    <Text key={i} className="text-slate-700 text-[11px] text-center">
+                      {slot.start} - {slot.end}
+                    </Text>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
       </View>
-    </ScrollView>
+      <Text className="text-slate-400 text-[10px] mt-1">← Geser tabel untuk lihat hari lainnya →</Text>
+    </View>
   );
 }
 

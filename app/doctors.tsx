@@ -1,11 +1,11 @@
 // app/doctors/index.tsx
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { auth } from '../services/firebaseConfig';
 import { ensureHouseholdAndGetActiveOwner } from '../services/householdService';
 import { DoctorService } from '../services/firestoreService';
-import { Doctor, WeeklySchedule } from '../types/health';
+import { Doctor, WeeklySchedule, DayOfWeek, DAY_ORDER, DAY_LABELS } from '../types/health';
 import ScreenHeader from '../components/ScreenHeader';
 import { WeeklyScheduleEditor, WeeklyScheduleView, isScheduleValid } from '../components/WeeklySchedule';
 
@@ -17,6 +17,32 @@ export default function DoctorsScreen() {
   const [loading, setLoading] = useState(true);
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<WithId<Doctor> | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dayFilter, setDayFilter] = useState<DayOfWeek | null>(null);
+
+  const filteredDoctors = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+
+    return doctors.filter((d) => {
+      const matchesDayFilter =
+        !dayFilter || (typeof d.weeklySchedule === 'object' && (d.weeklySchedule?.[dayFilter]?.length ?? 0) > 0);
+      if (!matchesDayFilter) return false;
+
+      if (!q) return true;
+
+      // Cocok lewat nama, spesialisasi, atau nama rumah sakit/tempat praktik
+      const textFields = [d.name, d.specialization, d.practiceLocation];
+      if (textFields.some((f) => f?.toLowerCase().includes(q))) return true;
+
+      // Cocok lewat nama hari, mis. ketik "kamis" -> tampilkan dokter yang praktik hari Kamis
+      const matchedDay = DAY_ORDER.find((day) => DAY_LABELS[day].toLowerCase().includes(q));
+      if (matchedDay && typeof d.weeklySchedule === 'object' && (d.weeklySchedule?.[matchedDay]?.length ?? 0) > 0) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [doctors, searchQuery, dayFilter]);
 
   const load = useCallback(async () => {
     const user = auth.currentUser;
@@ -65,6 +91,33 @@ export default function DoctorsScreen() {
           </Text>
         </Pressable>
 
+        {/* Pencarian & filter */}
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Cari nama dokter, spesialisasi, rumah sakit, atau hari (mis. 'kamis')"
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm mb-2"
+        />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+          <View className="flex-row gap-1.5">
+            <Pressable
+              onPress={() => setDayFilter(null)}
+              className={`px-3 py-1.5 rounded-full border ${dayFilter === null ? 'bg-teal-700 border-teal-700' : 'border-slate-200'}`}
+            >
+              <Text className={`text-xs ${dayFilter === null ? 'text-white' : 'text-slate-600'}`}>Semua Hari</Text>
+            </Pressable>
+            {DAY_ORDER.map((day) => (
+              <Pressable
+                key={day}
+                onPress={() => setDayFilter(dayFilter === day ? null : day)}
+                className={`px-3 py-1.5 rounded-full border ${dayFilter === day ? 'bg-teal-700 border-teal-700' : 'border-slate-200'}`}
+              >
+                <Text className={`text-xs ${dayFilter === day ? 'text-white' : 'text-slate-600'}`}>{DAY_LABELS[day]}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+
         {(showNewForm || editingDoctor) && householdOwnerUid && (
           <DoctorForm
             householdOwnerUid={householdOwnerUid}
@@ -82,9 +135,11 @@ export default function DoctorsScreen() {
           <ActivityIndicator color="#0F766E" />
         ) : doctors.length === 0 ? (
           <Text className="text-slate-400 text-sm">Belum ada profil dokter tersimpan.</Text>
+        ) : filteredDoctors.length === 0 ? (
+          <Text className="text-slate-400 text-sm">Tidak ada dokter yang cocok dengan pencarian/filter ini.</Text>
         ) : (
           <View className="gap-2">
-            {doctors.map((d) => (
+            {filteredDoctors.map((d) => (
               <View key={d.id} className="bg-white rounded-xl p-3 border border-slate-100">
                 <View className="flex-row justify-between items-start">
                   <View className="flex-1">
