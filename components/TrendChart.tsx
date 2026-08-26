@@ -17,9 +17,15 @@ interface Props {
   height?: number;
 }
 
+/** Format angka biar rapi: bulat tampil tanpa desimal, desimal dipangkas maks 2 digit. */
+function formatValue(v: number): string {
+  return Number(v.toFixed(2)).toString();
+}
+
 /**
  * Grafik garis tren sederhana untuk satu parameter lab, dengan pita area
- * normal (hijau transparan) sebagai referensi visual cepat.
+ * normal (hijau transparan) sebagai referensi visual cepat, plus label
+ * angka di atas tiap titik data.
  * Dibangun murni dengan react-native-svg agar identik di Android & Web.
  */
 export default function TrendChart({
@@ -43,6 +49,10 @@ export default function TrendChart({
   const width = 320;
   const paddingX = 28;
   const paddingY = 16;
+  // Ruang ekstra di atas area grafik supaya label angka di titik teratas
+  // tidak terpotong di luar batas SVG.
+  const topLabelSpace = 16;
+  const svgHeight = height + topLabelSpace;
   const chartW = width - paddingX * 2;
   const chartH = height - paddingY * 2;
 
@@ -55,7 +65,7 @@ export default function TrendChart({
   const scaleX = (i: number) =>
     paddingX + (points.length === 1 ? chartW / 2 : (i / (points.length - 1)) * chartW);
   const scaleY = (v: number) =>
-    paddingY + chartH - ((v - rangeMin) / (rangeMax - rangeMin || 1)) * chartH;
+    topLabelSpace + paddingY + chartH - ((v - rangeMin) / (rangeMax - rangeMin || 1)) * chartH;
 
   const linePoints = points.map((p, i) => `${scaleX(i)},${scaleY(p.value)}`).join(' ');
   const latest = points[points.length - 1];
@@ -69,7 +79,7 @@ export default function TrendChart({
         </Text>
       </View>
 
-      <Svg width={width} height={height}>
+      <Svg width={width} height={svgHeight}>
         {/* Pita area normal */}
         {normalMin !== undefined && normalMax !== undefined && (
           <Line
@@ -97,16 +107,29 @@ export default function TrendChart({
         {/* Garis tren */}
         <Polyline points={linePoints} fill="none" stroke={color} strokeWidth={2.5} />
 
-        {/* Titik data */}
+        {/* Titik data + label angka di atas tiap titik */}
         {points.map((p, i) => (
           <Circle key={i} cx={scaleX(i)} cy={scaleY(p.value)} r={3.5} fill={color} />
         ))}
+        {points.map((p, i) => (
+          <SvgText
+            key={`label-${i}`}
+            x={scaleX(i)}
+            y={Math.max(9, scaleY(p.value) - 7)}
+            fontSize={9}
+            fontWeight="600"
+            fill={color}
+            textAnchor="middle"
+          >
+            {formatValue(p.value)}
+          </SvgText>
+        ))}
 
         {/* Label sumbu-X (tanggal pertama & terakhir saja agar tidak padat) */}
-        <SvgText x={paddingX} y={height - 2} fontSize={9} fill="#94A3B8">
+        <SvgText x={paddingX} y={svgHeight - 2} fontSize={9} fill="#94A3B8">
           {points[0].date}
         </SvgText>
-        <SvgText x={width - paddingX - 30} y={height - 2} fontSize={9} fill="#94A3B8">
+        <SvgText x={width - paddingX - 30} y={svgHeight - 2} fontSize={9} fill="#94A3B8">
           {points[points.length - 1].date}
         </SvgText>
       </Svg>
