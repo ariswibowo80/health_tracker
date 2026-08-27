@@ -18,6 +18,11 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function nowHHMM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 const MED_FORMS: MedicationForm[] = ['sirup', 'tablet', 'puyer', 'tetes', 'semprot', 'nebulizer', 'suntik', 'lainnya'];
 
 export default function SicknessScreen() {
@@ -393,6 +398,13 @@ function EpisodeCard({
                   <Text className="text-slate-900 text-xs font-medium">
                     {m.name} ({m.form}) — {m.dose}, {m.frequencyPerDay}x/hari
                   </Text>
+                  {(m.administeredTime || m.temperatureC !== undefined) && (
+                    <Text className="text-slate-500 text-[11px] mt-0.5">
+                      {m.administeredTime ? `Jam ${m.administeredTime}` : ''}
+                      {m.administeredTime && m.temperatureC !== undefined ? ' · ' : ''}
+                      {m.temperatureC !== undefined ? `Suhu ${m.temperatureC}°C` : ''}
+                    </Text>
+                  )}
                   {m.specialNotes && <Text className="text-slate-500 text-[11px]">{m.specialNotes}</Text>}
                 </View>
                 <Pressable onPress={() => { setEditingMed(m); setShowMedForm(false); }} className="ml-2 px-2 py-1">
@@ -708,6 +720,10 @@ function MedicationEntryForm({
   const [frequencyPerDay, setFrequencyPerDay] = useState(String(existing?.frequencyPerDay ?? 2));
   const [specialNotes, setSpecialNotes] = useState(existing?.specialNotes ?? '');
   const [startDate, setStartDate] = useState(existing?.startDate ?? todayISO());
+  const [administeredTime, setAdministeredTime] = useState(existing?.administeredTime ?? nowHHMM());
+  const [temperatureC, setTemperatureC] = useState(
+    existing?.temperatureC !== undefined ? String(existing.temperatureC) : ''
+  );
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -721,6 +737,8 @@ function MedicationEntryForm({
         isAntiviral: /tamiflu|temulvir|oseltamivir/i.test(name),
         specialNotes: specialNotes || undefined,
         startDate,
+        administeredTime: administeredTime || undefined,
+        temperatureC: temperatureC ? Number(temperatureC) : undefined,
       };
       if (existing) {
         await SicknessService.updateAcuteMedication(memberId, existing.id, payload);
@@ -746,6 +764,16 @@ function MedicationEntryForm({
       <TextInput value={dose} onChangeText={setDose} placeholder="Dosis, mis. 5 ml / 1/2 tablet" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
       <TextInput value={frequencyPerDay} onChangeText={setFrequencyPerDay} keyboardType="number-pad" placeholder="Frekuensi per hari" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
       <TextInput value={startDate} onChangeText={setStartDate} placeholder="Tanggal mulai (YYYY-MM-DD)" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+      <View className="flex-row gap-2">
+        <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Jam Pemberian</Text>
+          <TextInput value={administeredTime} onChangeText={setAdministeredTime} placeholder="HH:MM" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
+        <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Suhu Badan (°C, opsional)</Text>
+          <TextInput value={temperatureC} onChangeText={setTemperatureC} keyboardType="decimal-pad" placeholder="mis. 38.5" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
+      </View>
       <TextInput value={specialNotes} onChangeText={setSpecialNotes} placeholder="Catatan, mis. dihabiskan / sesudah makan" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
       <View className="flex-row gap-2">
         {onCancel && (

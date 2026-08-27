@@ -149,6 +149,8 @@ export interface AcuteMedication {
   specialNotes?: string;        // mis. "dihabiskan", "sesudah makan"
   startDate: string;
   endDate?: string;
+  administeredTime?: string;    // jam pemberian, format "HH:MM" (default jam saat input)
+  temperatureC?: number;        // suhu badan (°C) saat obat diberikan
 }
 
 /* ------------------------- MODUL 2: LAB & MCU TRACKER ------------------------- */
