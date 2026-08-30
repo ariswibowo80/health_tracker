@@ -7,7 +7,7 @@ import { auth } from '../../../services/firebaseConfig';
 import { ensureHouseholdAndGetActiveOwner } from '../../../services/householdService';
 import { SicknessService, DoctorService } from '../../../services/firestoreService';
 import {
-  SicknessEpisode, DoctorVisit, AcuteMedication, MedicationForm, Doctor, Hospitalization, TreatingDoctor,
+  SicknessEpisode, DoctorVisit, AcuteMedication, MedicationForm, Doctor, Hospitalization, TreatingDoctor, SymptomLog,
 } from '../../../types/health';
 import ScreenHeader from '../../../components/ScreenHeader';
 import DoctorPicker from '../../../components/DoctorPicker';
@@ -23,6 +23,20 @@ function nowHHMM() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** Format epoch ms jadi "YYYY-MM-DD" dan "HH:MM" terpisah, untuk mengisi form edit. */
+function dateFromTimestamp(ts: number) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+function timeFromTimestamp(ts: number) {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+/** Gabungkan tanggal (YYYY-MM-DD) + jam (HH:MM) jadi epoch ms lokal. */
+function combineDateTime(date: string, time: string): number {
+  const t = /^\d{2}:\d{2}$/.test(time) ? time : '00:00';
+  return new Date(`${date}T${t}:00`).getTime();
+}
+
 const MED_FORMS: MedicationForm[] = ['sirup', 'tablet', 'puyer', 'tetes', 'semprot', 'nebulizer', 'suntik', 'lainnya'];
 
 export default function SicknessScreen() {
@@ -32,6 +46,7 @@ export default function SicknessScreen() {
   const [episodes, setEpisodes] = useState<WithId<SicknessEpisode>[]>([]);
   const [visits, setVisits] = useState<WithId<DoctorVisit>[]>([]);
   const [meds, setMeds] = useState<WithId<AcuteMedication>[]>([]);
+  const [symptomLogs, setSymptomLogs] = useState<WithId<SymptomLog>[]>([]);
   const [hospitalizations, setHospitalizations] = useState<WithId<Hospitalization>[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -55,14 +70,15 @@ export default function SicknessScreen() {
       const ownerUid = user ? await ensureHouseholdAndGetActiveOwner(user.uid, user.email) : null;
       setHouseholdOwnerUid(ownerUid);
 
-      const [ep, vs, md, hs] = await Promise.all([
+      const [ep, vs, md, hs, sl] = await Promise.all([
         SicknessService.listEpisodes(memberId),
         SicknessService.listDoctorVisits(memberId),
         SicknessService.listAcuteMedications(memberId),
         SicknessService.listHospitalizations(memberId),
+        SicknessService.listSymptomLogs(memberId),
         ownerUid ? loadDoctors(ownerUid) : Promise.resolve(),
       ]);
-      setEpisodes(ep); setVisits(vs); setMeds(md); setHospitalizations(hs);
+      setEpisodes(ep); setVisits(vs); setMeds(md); setHospitalizations(hs); setSymptomLogs(sl);
     } finally {
       setLoading(false);
     }
@@ -121,10 +137,12 @@ export default function SicknessScreen() {
       const relatedVisits = visits.filter((v) => v.episodeId === ep.id);
       const relatedMeds = meds.filter((m) => m.episodeId === ep.id);
       const relatedHospitalizations = hospitalizations.filter((h) => h.episodeId === ep.id);
+      const relatedSymptomLogs = symptomLogs.filter((s) => s.episodeId === ep.id);
       await Promise.all([
         ...relatedVisits.map((v) => SicknessService.deleteDoctorVisit(memberId!, v.id)),
         ...relatedMeds.map((m) => SicknessService.deleteAcuteMedication(memberId!, m.id)),
         ...relatedHospitalizations.map((h) => SicknessService.deleteHospitalization(memberId!, h.id)),
+        ...relatedSymptomLogs.map((s) => SicknessService.deleteSymptomLog(memberId!, s.id)),
       ]);
       await SicknessService.deleteEpisode(memberId!, ep.id);
       if (editingEpisodeId === ep.id) { setEditingEpisodeId(null); resetEpisodeForm(); }
@@ -209,6 +227,7 @@ export default function SicknessScreen() {
               householdOwnerUid={householdOwnerUid}
               visits={visits.filter((v) => v.episodeId === ep.id)}
               meds={meds.filter((m) => m.episodeId === ep.id)}
+              symptomLogs={symptomLogs.filter((s) => s.episodeId === ep.id)}
               hospitalizations={hospitalizations.filter((h) => h.episodeId === ep.id)}
               expanded={expandedId === ep.id}
               onToggle={() => setExpandedId(expandedId === ep.id ? null : ep.id)}
@@ -229,7 +248,7 @@ export default function SicknessScreen() {
 /* ------------------------------------------------------------------ */
 
 function EpisodeCard({
-  episode, memberId, doctors, householdOwnerUid, visits, meds, hospitalizations, expanded,
+  episode, memberId, doctors, householdOwnerUid, visits, meds, symptomLogs, hospitalizations, expanded,
   onToggle, onMarkRecovered, onEditEpisode, onDeleteEpisode, onDataChanged, onDoctorCreated,
 }: {
   episode: WithId<SicknessEpisode>;
@@ -238,6 +257,7 @@ function EpisodeCard({
   householdOwnerUid: string | null;
   visits: WithId<DoctorVisit>[];
   meds: WithId<AcuteMedication>[];
+  symptomLogs: WithId<SymptomLog>[];
   hospitalizations: WithId<Hospitalization>[];
   expanded: boolean;
   onToggle: () => void;
@@ -251,8 +271,29 @@ function EpisodeCard({
   const [editingVisit, setEditingVisit] = useState<WithId<DoctorVisit> | null>(null);
   const [showMedForm, setShowMedForm] = useState(false);
   const [editingMed, setEditingMed] = useState<WithId<AcuteMedication> | null>(null);
+  const [editingSymptomLog, setEditingSymptomLog] = useState<WithId<SymptomLog> | null>(null);
   const [showHospitalForm, setShowHospitalForm] = useState(false);
   const [editingHospital, setEditingHospital] = useState<WithId<Hospitalization> | null>(null);
+
+  // Gabungkan Obat + Cek Suhu jadi satu daftar kronologis (terbaru dulu)
+  type TimelineItem =
+    | { kind: 'obat'; key: string; sortKey: number; data: WithId<AcuteMedication> }
+    | { kind: 'suhu'; key: string; sortKey: number; data: WithId<SymptomLog> };
+
+  const timeline: TimelineItem[] = [
+    ...meds.map((m) => ({
+      kind: 'obat' as const,
+      key: `med-${m.id}`,
+      sortKey: combineDateTime(m.startDate, m.administeredTime ?? '00:00'),
+      data: m,
+    })),
+    ...symptomLogs.map((s) => ({
+      kind: 'suhu' as const,
+      key: `suhu-${s.id}`,
+      sortKey: s.timestamp,
+      data: s,
+    })),
+  ].sort((a, b) => b.sortKey - a.sortKey);
 
   return (
     <View className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
@@ -389,41 +430,68 @@ function EpisodeCard({
             />
           )}
 
-          {/* Obat */}
-          <Text className="text-slate-700 text-xs font-semibold mb-2 mt-2">Obat Diberikan</Text>
-          {meds.map((m) => (
-            <View key={m.id} className="bg-slate-50 rounded-lg p-2.5 mb-2">
-              <View className="flex-row justify-between items-start">
-                <View className="flex-1">
-                  <Text className="text-slate-900 text-xs font-medium">
-                    {m.name} ({m.form}) — {m.dose}, {m.frequencyPerDay}x/hari
-                  </Text>
-                  {(m.administeredTime || m.temperatureC !== undefined) && (
-                    <Text className="text-slate-500 text-[11px] mt-0.5">
-                      {m.administeredTime ? `Jam ${m.administeredTime}` : ''}
-                      {m.administeredTime && m.temperatureC !== undefined ? ' · ' : ''}
-                      {m.temperatureC !== undefined ? `Suhu ${m.temperatureC}°C` : ''}
+          {/* Obat & Cek Suhu */}
+          <Text className="text-slate-700 text-xs font-semibold mb-2 mt-2">Obat & Cek Suhu</Text>
+          {timeline.map((item) =>
+            item.kind === 'obat' ? (
+              <View key={item.key} className="bg-slate-50 rounded-lg p-2.5 mb-2">
+                <View className="flex-row justify-between items-start">
+                  <View className="flex-1">
+                    <Text className="text-slate-900 text-xs font-medium">
+                      💊 {item.data.name} ({item.data.form}) — {item.data.dose}, {item.data.frequencyPerDay}x/hari
                     </Text>
-                  )}
-                  {m.specialNotes && <Text className="text-slate-500 text-[11px]">{m.specialNotes}</Text>}
+                    {(item.data.administeredTime || item.data.temperatureC !== undefined) && (
+                      <Text className="text-slate-500 text-[11px] mt-0.5">
+                        {item.data.startDate}
+                        {item.data.administeredTime ? ` · Jam ${item.data.administeredTime}` : ''}
+                        {item.data.temperatureC !== undefined ? ` · Suhu ${item.data.temperatureC}°C` : ''}
+                      </Text>
+                    )}
+                    {item.data.specialNotes && <Text className="text-slate-500 text-[11px]">{item.data.specialNotes}</Text>}
+                  </View>
+                  <Pressable
+                    onPress={() => { setEditingMed(item.data); setEditingSymptomLog(null); setShowMedForm(false); }}
+                    className="ml-2 px-2 py-1"
+                  >
+                    <Text className="text-teal-700 text-[11px]">Edit</Text>
+                  </Pressable>
                 </View>
-                <Pressable onPress={() => { setEditingMed(m); setShowMedForm(false); }} className="ml-2 px-2 py-1">
-                  <Text className="text-teal-700 text-[11px]">Edit</Text>
-                </Pressable>
               </View>
-            </View>
-          ))}
-          {editingMed && (
+            ) : (
+              <View key={item.key} className="bg-blue-50 rounded-lg p-2.5 mb-2">
+                <View className="flex-row justify-between items-start">
+                  <View className="flex-1">
+                    <Text className="text-slate-900 text-xs font-medium">
+                      🌡️ Cek Suhu — {item.data.temperatureC !== undefined ? `${item.data.temperatureC}°C` : '-'}
+                    </Text>
+                    <Text className="text-slate-500 text-[11px] mt-0.5">
+                      {dateFromTimestamp(item.data.timestamp)} · Jam {timeFromTimestamp(item.data.timestamp)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => { setEditingSymptomLog(item.data); setEditingMed(null); setShowMedForm(false); }}
+                    className="ml-2 px-2 py-1"
+                  >
+                    <Text className="text-teal-700 text-[11px]">Edit</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )
+          )}
+          {(editingMed || editingSymptomLog) && (
             <MedicationEntryForm
               memberId={memberId}
               episodeId={episode.id}
-              existing={editingMed}
-              onSaved={() => { setEditingMed(null); onDataChanged(); }}
-              onCancel={() => setEditingMed(null)}
+              existing={editingMed ?? undefined}
+              existingSymptomLog={editingSymptomLog ?? undefined}
+              onSaved={() => { setEditingMed(null); setEditingSymptomLog(null); onDataChanged(); }}
+              onCancel={() => { setEditingMed(null); setEditingSymptomLog(null); }}
             />
           )}
-          <Pressable onPress={() => { setShowMedForm(!showMedForm); setEditingMed(null); }}>
-            <Text className="text-teal-700 text-xs">{showMedForm ? 'Batal' : '+ Tambah Obat'}</Text>
+          <Pressable
+            onPress={() => { setShowMedForm(!showMedForm); setEditingMed(null); setEditingSymptomLog(null); }}
+          >
+            <Text className="text-teal-700 text-xs">{showMedForm ? 'Batal' : '+ Tambah Obat / Cek Suhu'}</Text>
           </Pressable>
           {showMedForm && (
             <MedicationEntryForm
@@ -706,44 +774,73 @@ function HospitalizationForm({
 }
 
 function MedicationEntryForm({
-  memberId, episodeId, existing, onSaved, onCancel,
+  memberId, episodeId, existing, existingSymptomLog, onSaved, onCancel,
 }: {
   memberId: string;
   episodeId: string;
   existing?: WithId<AcuteMedication>;
+  existingSymptomLog?: WithId<SymptomLog>;
   onSaved: () => void;
   onCancel?: () => void;
 }) {
+  const [mode, setMode] = useState<'obat' | 'suhu'>(existingSymptomLog ? 'suhu' : 'obat');
+  const isEditing = !!existing || !!existingSymptomLog;
+
+  // Field khusus obat
   const [name, setName] = useState(existing?.name ?? '');
   const [form, setForm] = useState<MedicationForm>(existing?.form ?? 'sirup');
   const [dose, setDose] = useState(existing?.dose ?? '');
   const [frequencyPerDay, setFrequencyPerDay] = useState(String(existing?.frequencyPerDay ?? 2));
   const [specialNotes, setSpecialNotes] = useState(existing?.specialNotes ?? '');
-  const [startDate, setStartDate] = useState(existing?.startDate ?? todayISO());
-  const [administeredTime, setAdministeredTime] = useState(existing?.administeredTime ?? nowHHMM());
-  const [temperatureC, setTemperatureC] = useState(
-    existing?.temperatureC !== undefined ? String(existing.temperatureC) : ''
+
+  // Field bersama: tanggal, jam, suhu (dipakai baik mode obat maupun cek suhu saja)
+  const [date, setDate] = useState(
+    existing?.startDate ?? (existingSymptomLog ? dateFromTimestamp(existingSymptomLog.timestamp) : todayISO())
   );
+  const [time, setTime] = useState(
+    existing?.administeredTime ?? (existingSymptomLog ? timeFromTimestamp(existingSymptomLog.timestamp) : nowHHMM())
+  );
+  const [temperatureC, setTemperatureC] = useState(() => {
+    const t = existing?.temperatureC ?? existingSymptomLog?.temperatureC;
+    return t !== undefined ? String(t) : '';
+  });
+
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!name || !dose || !startDate) return;
+    if (!date) return;
     setSaving(true);
     try {
-      const payload = {
-        memberId, episodeId, name, form, dose,
-        frequencyPerDay: Number(frequencyPerDay) || 1,
-        isAntibiotic: /amoxicillin|cefixime|antibiotik/i.test(name),
-        isAntiviral: /tamiflu|temulvir|oseltamivir/i.test(name),
-        specialNotes: specialNotes || undefined,
-        startDate,
-        administeredTime: administeredTime || undefined,
-        temperatureC: temperatureC ? Number(temperatureC) : undefined,
-      };
-      if (existing) {
-        await SicknessService.updateAcuteMedication(memberId, existing.id, payload);
+      if (mode === 'suhu') {
+        const payload = {
+          episodeId,
+          memberId,
+          timestamp: combineDateTime(date, time),
+          temperatureC: temperatureC ? Number(temperatureC) : undefined,
+          complaints: [] as string[],
+        };
+        if (existingSymptomLog) {
+          await SicknessService.updateSymptomLog(memberId, existingSymptomLog.id, payload);
+        } else {
+          await SicknessService.addSymptomLog(memberId, payload);
+        }
       } else {
-        await SicknessService.addAcuteMedication(memberId, payload);
+        if (!name || !dose) return;
+        const payload = {
+          memberId, episodeId, name, form, dose,
+          frequencyPerDay: Number(frequencyPerDay) || 1,
+          isAntibiotic: /amoxicillin|cefixime|antibiotik/i.test(name),
+          isAntiviral: /tamiflu|temulvir|oseltamivir/i.test(name),
+          specialNotes: specialNotes || undefined,
+          startDate: date,
+          administeredTime: time || undefined,
+          temperatureC: temperatureC ? Number(temperatureC) : undefined,
+        };
+        if (existing) {
+          await SicknessService.updateAcuteMedication(memberId, existing.id, payload);
+        } else {
+          await SicknessService.addAcuteMedication(memberId, payload);
+        }
       }
       onSaved();
     } finally {
@@ -753,28 +850,58 @@ function MedicationEntryForm({
 
   return (
     <View className="bg-slate-50 rounded-lg p-3 mb-3 gap-2">
-      <TextInput value={name} onChangeText={setName} placeholder="Nama obat, mis. Tamiflu / Sanmol / Nasonex" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
-      <View className="flex-row flex-wrap gap-1.5">
-        {MED_FORMS.map((f) => (
-          <Pressable key={f} onPress={() => setForm(f)} className={`px-2 py-1 rounded-md border ${form === f ? 'bg-teal-700 border-teal-700' : 'border-slate-200'}`}>
-            <Text className={`text-[10px] capitalize ${form === f ? 'text-white' : 'text-slate-600'}`}>{f}</Text>
+      {/* Toggle mode hanya muncul saat menambah baru — saat edit, mode ikut jenis data aslinya */}
+      {!isEditing && (
+        <View className="flex-row gap-2 mb-1">
+          <Pressable
+            onPress={() => setMode('obat')}
+            className={`flex-1 px-2 py-1.5 rounded-md border items-center ${mode === 'obat' ? 'bg-teal-700 border-teal-700' : 'border-slate-200'}`}
+          >
+            <Text className={`text-xs font-medium ${mode === 'obat' ? 'text-white' : 'text-slate-600'}`}>💊 Obat</Text>
           </Pressable>
-        ))}
-      </View>
-      <TextInput value={dose} onChangeText={setDose} placeholder="Dosis, mis. 5 ml / 1/2 tablet" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
-      <TextInput value={frequencyPerDay} onChangeText={setFrequencyPerDay} keyboardType="number-pad" placeholder="Frekuensi per hari" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
-      <TextInput value={startDate} onChangeText={setStartDate} placeholder="Tanggal mulai (YYYY-MM-DD)" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+          <Pressable
+            onPress={() => setMode('suhu')}
+            className={`flex-1 px-2 py-1.5 rounded-md border items-center ${mode === 'suhu' ? 'bg-teal-700 border-teal-700' : 'border-slate-200'}`}
+          >
+            <Text className={`text-xs font-medium ${mode === 'suhu' ? 'text-white' : 'text-slate-600'}`}>🌡️ Cek Suhu Saja</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {mode === 'obat' && (
+        <>
+          <TextInput value={name} onChangeText={setName} placeholder="Nama obat, mis. Tamiflu / Sanmol / Nasonex" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+          <View className="flex-row flex-wrap gap-1.5">
+            {MED_FORMS.map((f) => (
+              <Pressable key={f} onPress={() => setForm(f)} className={`px-2 py-1 rounded-md border ${form === f ? 'bg-teal-700 border-teal-700' : 'border-slate-200'}`}>
+                <Text className={`text-[10px] capitalize ${form === f ? 'text-white' : 'text-slate-600'}`}>{f}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput value={dose} onChangeText={setDose} placeholder="Dosis, mis. 5 ml / 1/2 tablet" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+          <TextInput value={frequencyPerDay} onChangeText={setFrequencyPerDay} keyboardType="number-pad" placeholder="Frekuensi per hari" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </>
+      )}
+
       <View className="flex-row gap-2">
         <View className="flex-1">
-          <Text className="text-slate-500 text-[10px] mb-1">Jam Pemberian</Text>
-          <TextInput value={administeredTime} onChangeText={setAdministeredTime} placeholder="HH:MM" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+          <Text className="text-slate-500 text-[10px] mb-1">Tanggal</Text>
+          <TextInput value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
         </View>
         <View className="flex-1">
-          <Text className="text-slate-500 text-[10px] mb-1">Suhu Badan (°C, opsional)</Text>
-          <TextInput value={temperatureC} onChangeText={setTemperatureC} keyboardType="decimal-pad" placeholder="mis. 38.5" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+          <Text className="text-slate-500 text-[10px] mb-1">Jam</Text>
+          <TextInput value={time} onChangeText={setTime} placeholder="HH:MM" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
         </View>
       </View>
-      <TextInput value={specialNotes} onChangeText={setSpecialNotes} placeholder="Catatan, mis. dihabiskan / sesudah makan" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+      <View>
+        <Text className="text-slate-500 text-[10px] mb-1">Suhu Badan (°C{mode === 'obat' ? ', opsional' : ''})</Text>
+        <TextInput value={temperatureC} onChangeText={setTemperatureC} keyboardType="decimal-pad" placeholder="mis. 38.5" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+      </View>
+
+      {mode === 'obat' && (
+        <TextInput value={specialNotes} onChangeText={setSpecialNotes} placeholder="Catatan, mis. dihabiskan / sesudah makan" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+      )}
+
       <View className="flex-row gap-2">
         {onCancel && (
           <Pressable onPress={onCancel} className="flex-1 border border-slate-200 rounded-lg py-2 items-center">
@@ -782,7 +909,9 @@ function MedicationEntryForm({
           </Pressable>
         )}
         <Pressable onPress={handleSave} disabled={saving} className="flex-1 bg-teal-700 rounded-lg py-2 items-center disabled:opacity-60">
-          <Text className="text-white text-xs font-medium">{saving ? 'Menyimpan...' : existing ? 'Simpan Perubahan' : 'Simpan Obat'}</Text>
+          <Text className="text-white text-xs font-medium">
+            {saving ? 'Menyimpan...' : isEditing ? 'Simpan Perubahan' : mode === 'suhu' ? 'Simpan Cek Suhu' : 'Simpan Obat'}
+          </Text>
         </Pressable>
       </View>
     </View>

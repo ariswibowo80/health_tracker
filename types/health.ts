@@ -150,7 +150,8 @@ export interface AcuteMedication {
   startDate: string;
   endDate?: string;
   administeredTime?: string;    // jam pemberian, format "HH:MM" (default jam saat input)
-  temperatureC?: number;        // suhu badan (°C) saat obat diberikan
+  temperatureC?: number;        // suhu badan (°C) saat obat diberikan / saat cek suhu
+  isTemperatureCheckOnly?: boolean; // true kalau entri ini cuma catatan cek suhu (tanpa obat)
 }
 
 /* ------------------------- MODUL 2: LAB & MCU TRACKER ------------------------- */
