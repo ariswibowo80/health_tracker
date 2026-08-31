@@ -23,18 +23,33 @@ function nowHHMM() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-/** Format epoch ms jadi "YYYY-MM-DD" dan "HH:MM" terpisah, untuk mengisi form edit. */
-function dateFromTimestamp(ts: number) {
-  return new Date(ts).toISOString().slice(0, 10);
+function isValidDateObj(d: Date): boolean {
+  return !isNaN(d.getTime());
 }
+
+/** Format epoch ms jadi "YYYY-MM-DD", untuk mengisi form edit.
+ * Kalau timestamp korup/tidak valid (mis. data lama sebelum fitur jam/suhu
+ * ada), fallback ke hari ini alih-alih crash seluruh halaman. */
+function dateFromTimestamp(ts: number) {
+  const d = new Date(ts);
+  return isValidDateObj(d) ? d.toISOString().slice(0, 10) : todayISO();
+}
+
+/** Format epoch ms jadi "HH:MM", dengan fallback aman yang sama seperti di atas. */
 function timeFromTimestamp(ts: number) {
   const d = new Date(ts);
+  if (!isValidDateObj(d)) return '00:00';
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
-/** Gabungkan tanggal (YYYY-MM-DD) + jam (HH:MM) jadi epoch ms lokal. */
+
+/** Gabungkan tanggal (YYYY-MM-DD) + jam (HH:MM) jadi epoch ms lokal.
+ * Tanggal/jam yang formatnya tidak valid (data lama, atau input kosong)
+ * di-fallback ke hari ini / 00:00, supaya timeline tidak pernah crash. */
 function combineDateTime(date: string, time: string): number {
-  const t = /^\d{2}:\d{2}$/.test(time) ? time : '00:00';
-  return new Date(`${date}T${t}:00`).getTime();
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO();
+  const validTime = /^\d{2}:\d{2}$/.test(time) ? time : '00:00';
+  const d = new Date(`${validDate}T${validTime}:00`);
+  return isValidDateObj(d) ? d.getTime() : Date.now();
 }
 
 const MED_FORMS: MedicationForm[] = ['sirup', 'tablet', 'puyer', 'tetes', 'semprot', 'nebulizer', 'suntik', 'lainnya'];
@@ -315,6 +330,7 @@ function EpisodeCard({
 
   function formatDayHeader(dayKey: string) {
     const d = new Date(`${dayKey}T00:00:00`);
+    if (isNaN(d.getTime())) return dayKey; // fallback: tampilkan apa adanya, jangan crash
     return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
