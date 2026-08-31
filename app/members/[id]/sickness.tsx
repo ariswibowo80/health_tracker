@@ -275,12 +275,20 @@ function EpisodeCard({
   const [showHospitalForm, setShowHospitalForm] = useState(false);
   const [editingHospital, setEditingHospital] = useState<WithId<Hospitalization> | null>(null);
 
-  // Gabungkan Obat + Cek Suhu jadi satu daftar kronologis (terbaru dulu)
+  // Gabungkan Kunjungan Dokter + Obat + Cek Suhu jadi satu timeline,
+  // dikelompokkan per hari (hari terbaru di atas, urutan dalam hari pagi->malam).
   type TimelineItem =
+    | { kind: 'kunjungan'; key: string; sortKey: number; data: WithId<DoctorVisit> }
     | { kind: 'obat'; key: string; sortKey: number; data: WithId<AcuteMedication> }
     | { kind: 'suhu'; key: string; sortKey: number; data: WithId<SymptomLog> };
 
   const timeline: TimelineItem[] = [
+    ...visits.map((v) => ({
+      kind: 'kunjungan' as const,
+      key: `visit-${v.id}`,
+      sortKey: combineDateTime(v.date, '00:00'), // kunjungan tidak punya jam spesifik -> ditaruh di awal hari
+      data: v,
+    })),
     ...meds.map((m) => ({
       kind: 'obat' as const,
       key: `med-${m.id}`,
@@ -293,7 +301,56 @@ function EpisodeCard({
       sortKey: s.timestamp,
       data: s,
     })),
-  ].sort((a, b) => b.sortKey - a.sortKey);
+  ].sort((a, b) => a.sortKey - b.sortKey); // ascending dulu, untuk dikelompokkan per hari
+
+  // Kelompokkan per hari (YYYY-MM-DD), lalu urutkan grup hari dari terbaru ke terlama
+  const timelineByDay = new Map<string, TimelineItem[]>();
+  for (const item of timeline) {
+    const dayKey = dateFromTimestamp(item.sortKey);
+    const group = timelineByDay.get(dayKey) ?? [];
+    group.push(item);
+    timelineByDay.set(dayKey, group);
+  }
+  const dayGroups = Array.from(timelineByDay.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
+  function formatDayHeader(dayKey: string) {
+    const d = new Date(`${dayKey}T00:00:00`);
+    return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  async function handleDeleteMed(m: WithId<AcuteMedication>) {
+    const doDelete = async () => {
+      await SicknessService.deleteAcuteMedication(memberId, m.id);
+      if (editingMed?.id === m.id) setEditingMed(null);
+      onDataChanged();
+    };
+    const warning = `Hapus catatan obat "${m.name}"? Tindakan ini tidak bisa dibatalkan.`;
+    if (Platform.OS === 'web') {
+      if (window.confirm(warning)) await doDelete();
+      return;
+    }
+    Alert.alert('Hapus Obat', warning, [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Hapus', style: 'destructive', onPress: doDelete },
+    ]);
+  }
+
+  async function handleDeleteSymptomLog(s: WithId<SymptomLog>) {
+    const doDelete = async () => {
+      await SicknessService.deleteSymptomLog(memberId, s.id);
+      if (editingSymptomLog?.id === s.id) setEditingSymptomLog(null);
+      onDataChanged();
+    };
+    const warning = 'Hapus catatan cek suhu ini? Tindakan ini tidak bisa dibatalkan.';
+    if (Platform.OS === 'web') {
+      if (window.confirm(warning)) await doDelete();
+      return;
+    }
+    Alert.alert('Hapus Cek Suhu', warning, [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Hapus', style: 'destructive', onPress: doDelete },
+    ]);
+  }
 
   return (
     <View className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
@@ -327,26 +384,8 @@ function EpisodeCard({
             </Pressable>
           </View>
 
-          {/* Kunjungan Dokter */}
-          <Text className="text-slate-700 text-xs font-semibold mb-2">Kunjungan Dokter</Text>
-          {visits.map((v) => (
-            <View key={v.id} className="bg-slate-50 rounded-lg p-2.5 mb-2">
-              <View className="flex-row justify-between items-start">
-                <View className="flex-1">
-                  <Text className="text-slate-900 text-xs font-medium">{v.date} · {v.doctorName}</Text>
-                  <Text className="text-slate-500 text-[11px]">{v.facility} — {v.diagnosis}</Text>
-                  {v.labTests && v.labTests.length > 0 && (
-                    <Text className="text-slate-500 text-[11px] mt-0.5">
-                      Lab: {v.labTests.map((t) => `${t.testName}: ${t.result}`).join('; ')}
-                    </Text>
-                  )}
-                </View>
-                <Pressable onPress={() => { setEditingVisit(v); setShowVisitForm(false); }} className="ml-2 px-2 py-1">
-                  <Text className="text-teal-700 text-[11px]">Edit</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))}
+          {/* Kunjungan Dokter — daftar tampil di Timeline Perawatan di bawah,
+              form tambah/edit tetap di sini karena butuh DoctorPicker khusus */}
           {editingVisit && (
             <DoctorVisitForm
               memberId={memberId}
@@ -372,6 +411,7 @@ function EpisodeCard({
               onDoctorCreated={onDoctorCreated}
             />
           )}
+
 
           {/* Rawat Inap */}
           <Text className="text-slate-700 text-xs font-semibold mb-2 mt-2">Rawat Inap</Text>
@@ -430,53 +470,97 @@ function EpisodeCard({
             />
           )}
 
-          {/* Obat & Cek Suhu */}
-          <Text className="text-slate-700 text-xs font-semibold mb-2 mt-2">Obat & Cek Suhu</Text>
-          {timeline.map((item) =>
-            item.kind === 'obat' ? (
-              <View key={item.key} className="bg-slate-50 rounded-lg p-2.5 mb-2">
-                <View className="flex-row justify-between items-start">
-                  <View className="flex-1">
-                    <Text className="text-slate-900 text-xs font-medium">
-                      💊 {item.data.name} ({item.data.form}) — {item.data.dose}, {item.data.frequencyPerDay}x/hari
-                    </Text>
-                    {(item.data.administeredTime || item.data.temperatureC !== undefined) && (
-                      <Text className="text-slate-500 text-[11px] mt-0.5">
-                        {item.data.startDate}
-                        {item.data.administeredTime ? ` · Jam ${item.data.administeredTime}` : ''}
-                        {item.data.temperatureC !== undefined ? ` · Suhu ${item.data.temperatureC}°C` : ''}
-                      </Text>
-                    )}
-                    {item.data.specialNotes && <Text className="text-slate-500 text-[11px]">{item.data.specialNotes}</Text>}
-                  </View>
-                  <Pressable
-                    onPress={() => { setEditingMed(item.data); setEditingSymptomLog(null); setShowMedForm(false); }}
-                    className="ml-2 px-2 py-1"
-                  >
-                    <Text className="text-teal-700 text-[11px]">Edit</Text>
-                  </Pressable>
+          {/* Timeline Perawatan: Kunjungan Dokter + Obat + Cek Suhu, dikelompokkan per hari */}
+          <Text className="text-slate-700 text-xs font-semibold mb-2 mt-2">Timeline Perawatan</Text>
+          {dayGroups.length === 0 ? (
+            <Text className="text-slate-400 text-xs mb-2">Belum ada catatan.</Text>
+          ) : (
+            dayGroups.map(([dayKey, items]) => (
+              <View key={dayKey} className="mb-3">
+                <Text className="text-slate-500 text-[11px] font-semibold mb-1.5 uppercase">
+                  {formatDayHeader(dayKey)}
+                </Text>
+                <View className="pl-2 border-l-2 border-slate-100 gap-2">
+                  {items.map((item) => {
+                    if (item.kind === 'kunjungan') {
+                      const v = item.data;
+                      return (
+                        <View key={item.key} className="bg-emerald-50 rounded-lg p-2.5">
+                          <View className="flex-row justify-between items-start">
+                            <View className="flex-1">
+                              <Text className="text-slate-900 text-xs font-medium">🩺 {v.doctorName}</Text>
+                              <Text className="text-slate-500 text-[11px]">{v.facility} — {v.diagnosis}</Text>
+                              {v.labTests && v.labTests.length > 0 && (
+                                <Text className="text-slate-500 text-[11px] mt-0.5">
+                                  Lab: {v.labTests.map((t) => `${t.testName}: ${t.result}`).join('; ')}
+                                </Text>
+                              )}
+                            </View>
+                            <Pressable
+                              onPress={() => { setEditingVisit(v); setShowVisitForm(false); }}
+                              className="ml-2 px-2 py-1"
+                            >
+                              <Text className="text-teal-700 text-[11px]">Edit</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      );
+                    }
+                    if (item.kind === 'obat') {
+                      const m = item.data;
+                      return (
+                        <View key={item.key} className="bg-slate-50 rounded-lg p-2.5">
+                          <View className="flex-row justify-between items-start">
+                            <View className="flex-1">
+                              <Text className="text-slate-900 text-xs font-medium">
+                                💊 {m.name} ({m.form}) — {m.dose}, {m.frequencyPerDay}x/hari
+                              </Text>
+                              {(m.administeredTime || m.temperatureC !== undefined) && (
+                                <Text className="text-slate-500 text-[11px] mt-0.5">
+                                  {m.administeredTime ? `Jam ${m.administeredTime}` : ''}
+                                  {m.administeredTime && m.temperatureC !== undefined ? ' · ' : ''}
+                                  {m.temperatureC !== undefined ? `Suhu ${m.temperatureC}°C` : ''}
+                                </Text>
+                              )}
+                              {m.specialNotes && <Text className="text-slate-500 text-[11px]">{m.specialNotes}</Text>}
+                            </View>
+                            <View className="flex-row gap-2 ml-2">
+                              <Pressable onPress={() => { setEditingMed(m); setEditingSymptomLog(null); setShowMedForm(false); }}>
+                                <Text className="text-teal-700 text-[11px]">Edit</Text>
+                              </Pressable>
+                              <Pressable onPress={() => handleDeleteMed(m)}>
+                                <Text className="text-red-600 text-[11px]">Hapus</Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    }
+                    const s = item.data;
+                    return (
+                      <View key={item.key} className="bg-blue-50 rounded-lg p-2.5">
+                        <View className="flex-row justify-between items-start">
+                          <View className="flex-1">
+                            <Text className="text-slate-900 text-xs font-medium">
+                              🌡️ Cek Suhu — {s.temperatureC !== undefined ? `${s.temperatureC}°C` : '-'}
+                            </Text>
+                            <Text className="text-slate-500 text-[11px] mt-0.5">Jam {timeFromTimestamp(s.timestamp)}</Text>
+                          </View>
+                          <View className="flex-row gap-2 ml-2">
+                            <Pressable onPress={() => { setEditingSymptomLog(s); setEditingMed(null); setShowMedForm(false); }}>
+                              <Text className="text-teal-700 text-[11px]">Edit</Text>
+                            </Pressable>
+                            <Pressable onPress={() => handleDeleteSymptomLog(s)}>
+                              <Text className="text-red-600 text-[11px]">Hapus</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
-            ) : (
-              <View key={item.key} className="bg-blue-50 rounded-lg p-2.5 mb-2">
-                <View className="flex-row justify-between items-start">
-                  <View className="flex-1">
-                    <Text className="text-slate-900 text-xs font-medium">
-                      🌡️ Cek Suhu — {item.data.temperatureC !== undefined ? `${item.data.temperatureC}°C` : '-'}
-                    </Text>
-                    <Text className="text-slate-500 text-[11px] mt-0.5">
-                      {dateFromTimestamp(item.data.timestamp)} · Jam {timeFromTimestamp(item.data.timestamp)}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => { setEditingSymptomLog(item.data); setEditingMed(null); setShowMedForm(false); }}
-                    className="ml-2 px-2 py-1"
-                  >
-                    <Text className="text-teal-700 text-[11px]">Edit</Text>
-                  </Pressable>
-                </View>
-              </View>
-            )
+            ))
           )}
           {(editingMed || editingSymptomLog) && (
             <MedicationEntryForm
