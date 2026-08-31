@@ -155,6 +155,12 @@ export const SicknessService = {
   addSymptomLog: (memberId: string, data: Omit<SymptomLog, 'id'>) =>
     createDoc(subcollection(memberId, 'symptomLogs'), data),
 
+  updateSymptomLog: (memberId: string, id: string, data: Partial<SymptomLog>) =>
+    updateDocById(memberId, 'symptomLogs', id, data),
+
+  deleteSymptomLog: (memberId: string, id: string) =>
+    deleteDocById(memberId, 'symptomLogs', id),
+
   listSymptomLogs: (memberId: string, episodeId?: string) =>
     listDocs<SymptomLog>(memberId, 'symptomLogs', 'timestamp').then((logs) =>
       episodeId ? logs.filter((l) => l.episodeId === episodeId) : logs
