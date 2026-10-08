@@ -308,7 +308,7 @@ function EpisodeCard({
   function closeAllForms() { closeMedModal(); closeVisitModal(); closeHospitalModal(); }
 
   // Gabungkan Kunjungan Dokter + Rawat Inap + Obat + Cek Suhu jadi satu timeline,
-  // dikelompokkan per hari (hari terbaru di atas, urutan dalam hari pagi->malam).
+  // dikelompokkan per hari (hari terbaru di atas, urutan dalam hari juga terbaru di atas).
   type TimelineItem =
     | { kind: 'kunjungan'; key: string; sortKey: number; data: WithId<DoctorVisit> }
     | { kind: 'obat'; key: string; sortKey: number; data: WithId<AcuteMedication> }
@@ -340,7 +340,7 @@ function EpisodeCard({
       sortKey: s.timestamp,
       data: s,
     })),
-  ].sort((a, b) => a.sortKey - b.sortKey); // ascending dulu, untuk dikelompokkan per hari
+  ].sort((a, b) => b.sortKey - a.sortKey); // terbaru di atas; urutan ini terbawa ke dalam tiap grup hari
 
   // Kelompokkan per hari (YYYY-MM-DD), lalu urutkan grup hari dari terbaru ke terlama
   const timelineByDay = new Map<string, TimelineItem[]>();
