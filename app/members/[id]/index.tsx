@@ -149,6 +149,12 @@ export default function MemberDetailScreen() {
           onPress={() => router.push(`/members/${member.id}/sickness`)}
         />
         <ModuleCard
+          icon="💊"
+          title="Timeline Antibiotik"
+          desc="Riwayat semua antibiotik yang pernah diminum, dikelompokkan per obat dan per hari"
+          onPress={() => router.push(`/members/${member.id}/antibiotics`)}
+        />
+        <ModuleCard
           icon="🧪"
           title="Lab & MCU"
           desc="Glukosa, lipid, asam urat, fungsi ginjal/hati, tren & status normal otomatis"

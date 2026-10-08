@@ -11,6 +11,7 @@ import {
 } from '../../../types/health';
 import ScreenHeader from '../../../components/ScreenHeader';
 import DoctorPicker from '../../../components/DoctorPicker';
+import { looksLikeAntibiotic, looksLikeAntiviral } from '../../../utils/medication';
 
 type WithId<T> = T & { id: string };
 
@@ -539,6 +540,11 @@ function EpisodeCard({
                               <Text className="text-slate-900 text-xs font-medium">
                                 💊 {m.name} ({m.form}) — {m.dose}, {m.frequencyPerDay}x/hari
                               </Text>
+                              {m.isAntibiotic && (
+                                <View className="self-start bg-rose-100 rounded-full px-2 py-0.5 mt-1">
+                                  <Text className="text-rose-700 text-[10px] font-semibold">ANTIBIOTIK</Text>
+                                </View>
+                              )}
                               {(m.administeredTime || m.temperatureC !== undefined) && (
                                 <Text className="text-slate-500 text-[11px] mt-0.5">
                                   {m.administeredTime ? `Jam ${m.administeredTime}` : ''}
@@ -1121,6 +1127,9 @@ function MedicationEntryForm({
   const [dose, setDose] = useState(existing?.dose ?? '');
   const [frequencyPerDay, setFrequencyPerDay] = useState(String(existing?.frequencyPerDay ?? 2));
   const [specialNotes, setSpecialNotes] = useState(existing?.specialNotes ?? '');
+  // undefined = ikuti tebakan dari nama obat; true/false = pilihan manual pengguna
+  const [antibioticOverride, setAntibioticOverride] = useState<boolean | undefined>(existing?.isAntibiotic);
+  const isAntibiotic = antibioticOverride ?? looksLikeAntibiotic(name);
 
   // Field bersama: tanggal, jam, suhu (dipakai baik mode obat maupun cek suhu saja)
   const [date, setDate] = useState(
@@ -1158,8 +1167,8 @@ function MedicationEntryForm({
         const payload = {
           memberId, episodeId, name, form, dose,
           frequencyPerDay: Number(frequencyPerDay) || 1,
-          isAntibiotic: /amoxicillin|cefixime|antibiotik/i.test(name),
-          isAntiviral: /tamiflu|temulvir|oseltamivir/i.test(name),
+          isAntibiotic,
+          isAntiviral: looksLikeAntiviral(name),
           specialNotes: specialNotes || undefined,
           startDate: date,
           administeredTime: time || undefined,
@@ -1207,6 +1216,14 @@ function MedicationEntryForm({
               </Pressable>
             ))}
           </View>
+          <Pressable
+            onPress={() => setAntibioticOverride(!isAntibiotic)}
+            className={`self-start flex-row items-center px-3 py-1.5 rounded-full border ${isAntibiotic ? 'bg-rose-100 border-rose-300' : 'border-slate-200'}`}
+          >
+            <Text className={`text-xs font-medium ${isAntibiotic ? 'text-rose-700' : 'text-slate-500'}`}>
+              {isAntibiotic ? '✓ Antibiotik' : 'Tandai sebagai antibiotik'}
+            </Text>
+          </Pressable>
           <TextInput value={dose} onChangeText={setDose} placeholder="Dosis, mis. 5 ml / 1/2 tablet" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
           <TextInput value={frequencyPerDay} onChangeText={setFrequencyPerDay} keyboardType="number-pad" placeholder="Frekuensi per hari" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
         </>

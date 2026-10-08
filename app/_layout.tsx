@@ -46,6 +46,7 @@ export default function RootLayout() {
       <Stack.Screen name="doctors" options={{ headerShown: false }} />
         <Stack.Screen name="members/[id]/index" options={{ headerShown: false }} />
         <Stack.Screen name="members/[id]/sickness" options={{ headerShown: false }} />
+        <Stack.Screen name="members/[id]/antibiotics" options={{ headerShown: false }} />
         <Stack.Screen name="members/[id]/lab" options={{ headerShown: false }} />
         <Stack.Screen name="members/[id]/lifestyle" options={{ headerShown: false }} />
       </Stack>
