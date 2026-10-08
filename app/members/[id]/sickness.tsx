@@ -167,6 +167,7 @@ export default function SicknessScreen() {
       ]);
       await SicknessService.deleteEpisode(memberId!, ep.id);
       if (editingEpisodeId === ep.id) { setEditingEpisodeId(null); resetEpisodeForm(); }
+      if (expandedId === ep.id) setExpandedId(null);
       await load();
     };
 
@@ -239,7 +240,8 @@ export default function SicknessScreen() {
         <Text className="text-slate-400 text-sm">Belum ada catatan sakit.</Text>
       ) : (
         <View className="gap-3">
-          {episodes.map((ep) => (
+          {/* Saat satu episode dibuka, episode lain disembunyikan; tutup lagi untuk melihat semua */}
+          {episodes.filter((ep) => !expandedId || ep.id === expandedId).map((ep) => (
             <EpisodeCard
               key={ep.id}
               episode={ep}
