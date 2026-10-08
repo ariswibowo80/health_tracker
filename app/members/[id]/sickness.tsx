@@ -319,7 +319,7 @@ function EpisodeCard({
     ...visits.map((v) => ({
       kind: 'kunjungan' as const,
       key: `visit-${v.id}`,
-      sortKey: combineDateTime(v.date, '00:00'), // kunjungan tidak punya jam spesifik -> ditaruh di awal hari
+      sortKey: combineDateTime(v.date, v.time || '00:00'), // data lama tanpa jam -> ditaruh di awal hari
       data: v,
     })),
     ...meds.map((m) => ({
@@ -331,7 +331,7 @@ function EpisodeCard({
     ...hospitalizations.map((h) => ({
       kind: 'rawat' as const,
       key: `rawat-${h.id}`,
-      sortKey: combineDateTime(h.admissionDate, '00:00'), // rawat inap dicatat per tanggal masuk
+      sortKey: combineDateTime(h.admissionDate, h.admissionTime || '00:00'), // rawat inap dicatat per tanggal masuk
       data: h,
     })),
     ...symptomLogs.map((s) => ({
@@ -370,6 +370,40 @@ function EpisodeCard({
       return;
     }
     Alert.alert('Hapus Obat', warning, [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Hapus', style: 'destructive', onPress: doDelete },
+    ]);
+  }
+
+  async function handleDeleteVisit(v: WithId<DoctorVisit>) {
+    const doDelete = async () => {
+      await SicknessService.deleteDoctorVisit(memberId, v.id);
+      if (editingVisit?.id === v.id) setEditingVisit(null);
+      onDataChanged();
+    };
+    const warning = `Hapus kunjungan dokter "${v.doctorName}"? Tindakan ini tidak bisa dibatalkan.`;
+    if (Platform.OS === 'web') {
+      if (window.confirm(warning)) await doDelete();
+      return;
+    }
+    Alert.alert('Hapus Kunjungan Dokter', warning, [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Hapus', style: 'destructive', onPress: doDelete },
+    ]);
+  }
+
+  async function handleDeleteHospitalization(h: WithId<Hospitalization>) {
+    const doDelete = async () => {
+      await SicknessService.deleteHospitalization(memberId, h.id);
+      if (editingHospital?.id === h.id) setEditingHospital(null);
+      onDataChanged();
+    };
+    const warning = `Hapus data rawat inap di "${h.hospitalName}"? Tindakan ini tidak bisa dibatalkan.`;
+    if (Platform.OS === 'web') {
+      if (window.confirm(warning)) await doDelete();
+      return;
+    }
+    Alert.alert('Hapus Rawat Inap', warning, [
       { text: 'Batal', style: 'cancel' },
       { text: 'Hapus', style: 'destructive', onPress: doDelete },
     ]);
@@ -462,7 +496,7 @@ function EpisodeCard({
                         <View key={item.key} className="bg-emerald-50 rounded-lg p-2.5">
                           <View className="flex-row justify-between items-start">
                             <View className="flex-1">
-                              <Text className="text-slate-900 text-xs font-medium">🩺 {v.doctorName}</Text>
+                              <Text className="text-slate-900 text-xs font-medium">🩺 {v.doctorName}{v.time ? ` · Jam ${v.time}` : ''}</Text>
                               <Text className="text-slate-500 text-[11px]">{v.facility} — {v.diagnosis}</Text>
                               {v.labTests && v.labTests.length > 0 && (
                                 <Text className="text-slate-500 text-[11px] mt-0.5">
@@ -470,12 +504,14 @@ function EpisodeCard({
                                 </Text>
                               )}
                             </View>
-                            <Pressable
-                              onPress={() => { closeAllForms(); setEditingVisit(v); }}
-                              className="ml-2 px-2 py-1"
-                            >
-                              <Text className="text-teal-700 text-[11px]">Edit</Text>
-                            </Pressable>
+                            <View className="flex-row gap-2 ml-2">
+                              <Pressable onPress={() => { closeAllForms(); setEditingVisit(v); }}>
+                                <Text className="text-teal-700 text-[11px]">Edit</Text>
+                              </Pressable>
+                              <Pressable onPress={() => handleDeleteVisit(v)}>
+                                <Text className="text-red-600 text-[11px]">Hapus</Text>
+                              </Pressable>
+                            </View>
                           </View>
                         </View>
                       );
@@ -521,7 +557,7 @@ function EpisodeCard({
                                 🏥 Rawat Inap — {h.hospitalName} · {h.roomClass}
                               </Text>
                               <Text className="text-slate-500 text-[11px]">
-                                Masuk {h.admissionDate} · {h.lengthOfStayDays} hari
+                                Masuk {h.admissionDate}{h.admissionTime ? ` jam ${h.admissionTime}` : ''} · {h.lengthOfStayDays} hari
                                 {h.dischargeDate ? ` (keluar ${h.dischargeDate})` : ' (masih dirawat)'}
                               </Text>
                               <Text className="text-slate-500 text-[11px]">
@@ -533,12 +569,14 @@ function EpisodeCard({
                                 </Text>
                               )}
                             </View>
-                            <Pressable
-                              onPress={() => { closeAllForms(); setEditingHospital(h); }}
-                              className="ml-2 px-2 py-1"
-                            >
-                              <Text className="text-teal-700 text-[11px]">Edit</Text>
-                            </Pressable>
+                            <View className="flex-row gap-2 ml-2">
+                              <Pressable onPress={() => { closeAllForms(); setEditingHospital(h); }}>
+                                <Text className="text-teal-700 text-[11px]">Edit</Text>
+                              </Pressable>
+                              <Pressable onPress={() => handleDeleteHospitalization(h)}>
+                                <Text className="text-red-600 text-[11px]">Hapus</Text>
+                              </Pressable>
+                            </View>
                           </View>
                         </View>
                       );
@@ -663,6 +701,7 @@ function DoctorVisitForm({
   onDoctorCreated?: () => void;
 }) {
   const [date, setDate] = useState(existing?.date ?? todayISO());
+  const [time, setTime] = useState(existing?.time ?? (existing ? '' : nowHHMM()));
   const [doctorId, setDoctorId] = useState<string | undefined>(existing?.doctorId);
   const [doctorName, setDoctorName] = useState(existing?.doctorName ?? '');
   const [facility, setFacility] = useState(existing?.facility ?? '');
@@ -690,7 +729,7 @@ function DoctorVisitForm({
     setSaving(true);
     try {
       const payload = {
-        memberId, episodeId, date, doctorId, doctorName: doctorName.trim(), facility, diagnosis,
+        memberId, episodeId, date, time: time.trim(), doctorId, doctorName: doctorName.trim(), facility, diagnosis,
         labTests: labTestName
           ? [{ id: existing?.labTests?.[0]?.id ?? String(Date.now()), testName: labTestName, result: labResult }]
           : [],
@@ -708,7 +747,16 @@ function DoctorVisitForm({
 
   return (
     <View className="bg-slate-50 rounded-lg p-3 mb-3 gap-2">
-      <TextInput value={date} onChangeText={setDate} placeholder="Tanggal (YYYY-MM-DD)" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+      <View className="flex-row gap-2">
+        <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Tanggal</Text>
+          <TextInput value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
+        <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Jam (opsional)</Text>
+          <TextInput value={time} onChangeText={setTime} placeholder="HH:MM" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
+      </View>
 
       {householdOwnerUid ? (
         <DoctorPicker
@@ -759,6 +807,7 @@ function HospitalizationForm({
   const [roomClass, setRoomClass] = useState(existing?.roomClass ?? '');
   const [roomCostPerDay, setRoomCostPerDay] = useState(String(existing?.roomCostPerDay ?? ''));
   const [admissionDate, setAdmissionDate] = useState(existing?.admissionDate ?? todayISO());
+  const [admissionTime, setAdmissionTime] = useState(existing?.admissionTime ?? (existing ? '' : nowHHMM()));
   const [dischargeDate, setDischargeDate] = useState(existing?.dischargeDate ?? '');
   const [lengthOfStayDays, setLengthOfStayDays] = useState(String(existing?.lengthOfStayDays ?? '1'));
   const [notes, setNotes] = useState(existing?.notes ?? '');
@@ -821,6 +870,7 @@ function HospitalizationForm({
         roomClass: roomClass.trim(),
         roomCostPerDay: Number(roomCostPerDay) || 0,
         admissionDate,
+        admissionTime: admissionTime.trim(),
         dischargeDate: dischargeDate || undefined,
         lengthOfStayDays: Number(lengthOfStayDays) || 1,
         treatingDoctors,
@@ -859,13 +909,19 @@ function HospitalizationForm({
           <TextInput value={admissionDate} onChangeText={setAdmissionDate} placeholder="YYYY-MM-DD" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
         </View>
         <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Jam Masuk (opsional)</Text>
+          <TextInput value={admissionTime} onChangeText={setAdmissionTime} placeholder="HH:MM" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
+      </View>
+      <View className="flex-row gap-2">
+        <View className="flex-1">
           <Text className="text-slate-500 text-[10px] mb-1">Tanggal Keluar (opsional)</Text>
           <TextInput value={dischargeDate} onChangeText={handleDischargeDateChange} placeholder="Kosongkan jika masih dirawat" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
         </View>
-      </View>
-      <View>
-        <Text className="text-slate-500 text-[10px] mb-1">Lama Dirawat (hari)</Text>
-        <TextInput value={lengthOfStayDays} onChangeText={setLengthOfStayDays} keyboardType="number-pad" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-24" />
+        <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Lama Dirawat (hari)</Text>
+          <TextInput value={lengthOfStayDays} onChangeText={setLengthOfStayDays} keyboardType="number-pad" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
       </View>
 
       <Text className="text-slate-500 text-[10px] mt-1">Dokter yang Menangani (bisa lebih dari satu)</Text>
