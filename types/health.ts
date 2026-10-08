@@ -92,6 +92,7 @@ export interface DoctorVisit {
   episodeId: string;
   memberId: string;
   date: string;
+  time?: string;             // jam kunjungan, HH:MM (opsional; data lama tidak punya)
   doctorId?: string;         // referensi ke Doctor.id kalau dipilih dari daftar
   doctorName: string;        // mis. "dr. Cynthia Utami, Sp.A"
   facility: string;           // mis. "RS Grha Kedoya"
@@ -120,6 +121,7 @@ export interface Hospitalization {
   roomClass: string;             // mis. "VIP", "Kelas 1", "ICU"
   roomCostPerDay: number;        // biaya kamar per hari (Rupiah)
   admissionDate: string;         // tanggal masuk, YYYY-MM-DD
+  admissionTime?: string;        // jam masuk, HH:MM (opsional; data lama tidak punya)
   dischargeDate?: string;        // tanggal keluar (kosongkan kalau masih dirawat)
   lengthOfStayDays: number;      // lama dirawat (hari)
   treatingDoctors: TreatingDoctor[]; // dokter yang menangani, bisa lebih dari satu
