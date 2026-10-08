@@ -14,8 +14,14 @@ import DoctorPicker from '../../../components/DoctorPicker';
 
 type WithId<T> = T & { id: string };
 
+/** Format Date jadi "YYYY-MM-DD" berdasarkan zona waktu lokal (bukan UTC),
+ * supaya konsisten dengan combineDateTime yang membaca jam lokal. */
+function localDateISO(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateISO(new Date());
 }
 
 function nowHHMM() {
@@ -32,7 +38,7 @@ function isValidDateObj(d: Date): boolean {
  * ada), fallback ke hari ini alih-alih crash seluruh halaman. */
 function dateFromTimestamp(ts: number) {
   const d = new Date(ts);
-  return isValidDateObj(d) ? d.toISOString().slice(0, 10) : todayISO();
+  return isValidDateObj(d) ? localDateISO(d) : todayISO();
 }
 
 /** Format epoch ms jadi "HH:MM", dengan fallback aman yang sama seperti di atas. */
@@ -128,7 +134,7 @@ export default function SicknessScreen() {
   }
 
   async function handleSaveEditEpisode() {
-    if (!memberId || !editingEpisodeId || !title.trim()) return;
+    if (!memberId || !editingEpisodeId || !title.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return;
     await SicknessService.updateEpisode(memberId, editingEpisodeId, {
       title: title.trim(),
       startDate,
@@ -161,6 +167,7 @@ export default function SicknessScreen() {
       ]);
       await SicknessService.deleteEpisode(memberId!, ep.id);
       if (editingEpisodeId === ep.id) { setEditingEpisodeId(null); resetEpisodeForm(); }
+      if (expandedId === ep.id) setExpandedId(null);
       await load();
     };
 
@@ -233,7 +240,8 @@ export default function SicknessScreen() {
         <Text className="text-slate-400 text-sm">Belum ada catatan sakit.</Text>
       ) : (
         <View className="gap-3">
-          {episodes.map((ep) => (
+          {/* Saat satu episode dibuka, episode lain disembunyikan; tutup lagi untuk melihat semua */}
+          {episodes.filter((ep) => !expandedId || ep.id === expandedId).map((ep) => (
             <EpisodeCard
               key={ep.id}
               episode={ep}
@@ -404,6 +412,7 @@ function EpisodeCard({
               form tambah/edit tetap di sini karena butuh DoctorPicker khusus */}
           {editingVisit && (
             <DoctorVisitForm
+              key={`edit-${editingVisit.id}`}
               memberId={memberId}
               episodeId={episode.id}
               doctors={doctors}
@@ -462,6 +471,7 @@ function EpisodeCard({
           })}
           {editingHospital && (
             <HospitalizationForm
+              key={`edit-${editingHospital.id}`}
               memberId={memberId}
               episodeId={episode.id}
               doctors={doctors}
@@ -580,6 +590,7 @@ function EpisodeCard({
           )}
           {(editingMed || editingSymptomLog) && (
             <MedicationEntryForm
+              key={`edit-${editingMed?.id ?? editingSymptomLog?.id}`}
               memberId={memberId}
               episodeId={episode.id}
               existing={editingMed ?? undefined}
