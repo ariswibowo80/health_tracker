@@ -14,8 +14,14 @@ import DoctorPicker from '../../../components/DoctorPicker';
 
 type WithId<T> = T & { id: string };
 
+/** Format Date jadi "YYYY-MM-DD" berdasarkan zona waktu lokal (bukan UTC),
+ * supaya konsisten dengan combineDateTime yang membaca jam lokal. */
+function localDateISO(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateISO(new Date());
 }
 
 function nowHHMM() {
@@ -32,7 +38,7 @@ function isValidDateObj(d: Date): boolean {
  * ada), fallback ke hari ini alih-alih crash seluruh halaman. */
 function dateFromTimestamp(ts: number) {
   const d = new Date(ts);
-  return isValidDateObj(d) ? d.toISOString().slice(0, 10) : todayISO();
+  return isValidDateObj(d) ? localDateISO(d) : todayISO();
 }
 
 /** Format epoch ms jadi "HH:MM", dengan fallback aman yang sama seperti di atas. */
