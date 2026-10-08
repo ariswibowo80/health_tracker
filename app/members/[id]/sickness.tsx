@@ -293,6 +293,8 @@ function EpisodeCard({
   const [showVisitForm, setShowVisitForm] = useState(false);
   const [editingVisit, setEditingVisit] = useState<WithId<DoctorVisit> | null>(null);
   const [showMedForm, setShowMedForm] = useState(false);
+  const [showComplaintForm, setShowComplaintForm] = useState(false);
+  const [editingComplaint, setEditingComplaint] = useState<WithId<SymptomLog> | null>(null);
   const [editingMed, setEditingMed] = useState<WithId<AcuteMedication> | null>(null);
   const [editingSymptomLog, setEditingSymptomLog] = useState<WithId<SymptomLog> | null>(null);
   const [showHospitalForm, setShowHospitalForm] = useState(false);
@@ -300,20 +302,23 @@ function EpisodeCard({
   const medModalOpen = showMedForm || !!editingMed || !!editingSymptomLog;
   const visitModalOpen = showVisitForm || !!editingVisit;
   const hospitalModalOpen = showHospitalForm || !!editingHospital;
+  const complaintModalOpen = showComplaintForm || !!editingComplaint;
   function closeMedModal() {
     setShowMedForm(false); setEditingMed(null); setEditingSymptomLog(null);
   }
   function closeVisitModal() { setShowVisitForm(false); setEditingVisit(null); }
   function closeHospitalModal() { setShowHospitalForm(false); setEditingHospital(null); }
-  function closeAllForms() { closeMedModal(); closeVisitModal(); closeHospitalModal(); }
+  function closeComplaintModal() { setShowComplaintForm(false); setEditingComplaint(null); }
+  function closeAllForms() { closeMedModal(); closeVisitModal(); closeHospitalModal(); closeComplaintModal(); }
 
-  // Gabungkan Kunjungan Dokter + Rawat Inap + Obat + Cek Suhu jadi satu timeline,
+  // Gabungkan Kunjungan Dokter + Rawat Inap + Obat + Cek Suhu + Keluhan jadi satu timeline,
   // dikelompokkan per hari (hari terbaru di atas, urutan dalam hari juga terbaru di atas).
   type TimelineItem =
     | { kind: 'kunjungan'; key: string; sortKey: number; data: WithId<DoctorVisit> }
     | { kind: 'obat'; key: string; sortKey: number; data: WithId<AcuteMedication> }
     | { kind: 'suhu'; key: string; sortKey: number; data: WithId<SymptomLog> }
-    | { kind: 'rawat'; key: string; sortKey: number; data: WithId<Hospitalization> };
+    | { kind: 'rawat'; key: string; sortKey: number; data: WithId<Hospitalization> }
+    | { kind: 'keluhan'; key: string; sortKey: number; data: WithId<SymptomLog> };
 
   const timeline: TimelineItem[] = [
     ...visits.map((v) => ({
@@ -335,7 +340,8 @@ function EpisodeCard({
       data: h,
     })),
     ...symptomLogs.map((s) => ({
-      kind: 'suhu' as const,
+      // log dengan daftar keluhan = item Keluhan; tanpa keluhan = Cek Suhu biasa
+      kind: (s.complaints?.length ? 'keluhan' : 'suhu') as 'keluhan' | 'suhu',
       key: `suhu-${s.id}`,
       sortKey: s.timestamp,
       data: s,
@@ -413,14 +419,16 @@ function EpisodeCard({
     const doDelete = async () => {
       await SicknessService.deleteSymptomLog(memberId, s.id);
       if (editingSymptomLog?.id === s.id) setEditingSymptomLog(null);
+      if (editingComplaint?.id === s.id) setEditingComplaint(null);
       onDataChanged();
     };
-    const warning = 'Hapus catatan cek suhu ini? Tindakan ini tidak bisa dibatalkan.';
+    const isComplaint = !!s.complaints?.length;
+    const warning = `Hapus catatan ${isComplaint ? 'keluhan' : 'cek suhu'} ini? Tindakan ini tidak bisa dibatalkan.`;
     if (Platform.OS === 'web') {
       if (window.confirm(warning)) await doDelete();
       return;
     }
-    Alert.alert('Hapus Cek Suhu', warning, [
+    Alert.alert(isComplaint ? 'Hapus Keluhan' : 'Hapus Cek Suhu', warning, [
       { text: 'Batal', style: 'cancel' },
       { text: 'Hapus', style: 'destructive', onPress: doDelete },
     ]);
@@ -466,6 +474,12 @@ function EpisodeCard({
               className="bg-teal-50 rounded-lg px-3 py-1.5"
             >
               <Text className="text-teal-700 text-xs font-medium">+ Obat / Cek Suhu</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { closeAllForms(); setShowComplaintForm(true); }}
+              className="bg-teal-50 rounded-lg px-3 py-1.5"
+            >
+              <Text className="text-teal-700 text-xs font-medium">+ Keluhan</Text>
             </Pressable>
             <Pressable
               onPress={() => { closeAllForms(); setShowVisitForm(true); }}
@@ -581,6 +595,33 @@ function EpisodeCard({
                         </View>
                       );
                     }
+                    if (item.kind === 'keluhan') {
+                      const k = item.data;
+                      return (
+                        <View key={item.key} className="bg-amber-50 rounded-lg p-2.5">
+                          <View className="flex-row justify-between items-start">
+                            <View className="flex-1">
+                              <Text className="text-slate-900 text-xs font-medium">
+                                🤒 Keluhan — {k.complaints.join(', ')}
+                              </Text>
+                              <Text className="text-slate-500 text-[11px] mt-0.5">
+                                Jam {timeFromTimestamp(k.timestamp)}
+                                {k.temperatureC !== undefined ? ` · Suhu ${k.temperatureC}°C` : ''}
+                              </Text>
+                              {k.notes ? <Text className="text-slate-500 text-[11px]">{k.notes}</Text> : null}
+                            </View>
+                            <View className="flex-row gap-2 ml-2">
+                              <Pressable onPress={() => { closeAllForms(); setEditingComplaint(k); }}>
+                                <Text className="text-teal-700 text-[11px]">Edit</Text>
+                              </Pressable>
+                              <Pressable onPress={() => handleDeleteSymptomLog(k)}>
+                                <Text className="text-red-600 text-[11px]">Hapus</Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    }
                     const s = item.data;
                     return (
                       <View key={item.key} className="bg-blue-50 rounded-lg p-2.5">
@@ -621,6 +662,20 @@ function EpisodeCard({
               existingSymptomLog={editingSymptomLog ?? undefined}
               onSaved={() => { closeMedModal(); onDataChanged(); }}
               onCancel={closeMedModal}
+            />
+          </FormModal>
+          <FormModal
+            visible={complaintModalOpen}
+            title={editingComplaint ? 'Edit Keluhan' : 'Tambah Keluhan'}
+            onClose={closeComplaintModal}
+          >
+            <ComplaintForm
+              key={`complaint-${editingComplaint?.id ?? 'new'}`}
+              memberId={memberId}
+              episodeId={episode.id}
+              existing={editingComplaint ?? undefined}
+              onSaved={() => { closeComplaintModal(); onDataChanged(); }}
+              onCancel={closeComplaintModal}
             />
           </FormModal>
           <FormModal
@@ -967,6 +1022,80 @@ function HospitalizationForm({
         )}
         <Pressable onPress={handleSave} disabled={saving} className="flex-1 bg-teal-700 rounded-lg py-2 items-center disabled:opacity-60">
           <Text className="text-white text-xs font-medium">{saving ? 'Menyimpan...' : existing ? 'Simpan Perubahan' : 'Simpan Rawat Inap'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function ComplaintForm({
+  memberId, episodeId, existing, onSaved, onCancel,
+}: {
+  memberId: string;
+  episodeId: string;
+  existing?: WithId<SymptomLog>;
+  onSaved: () => void;
+  onCancel?: () => void;
+}) {
+  const [complaints, setComplaints] = useState(existing?.complaints.join(', ') ?? '');
+  const [date, setDate] = useState(existing ? dateFromTimestamp(existing.timestamp) : todayISO());
+  const [time, setTime] = useState(existing ? timeFromTimestamp(existing.timestamp) : nowHHMM());
+  const [temperatureC, setTemperatureC] = useState(
+    existing?.temperatureC !== undefined ? String(existing.temperatureC) : ''
+  );
+  const [notes, setNotes] = useState(existing?.notes ?? '');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    const list = complaints.split(',').map((c) => c.trim()).filter(Boolean);
+    if (list.length === 0 || !date) return;
+    setSaving(true);
+    try {
+      const payload = {
+        episodeId,
+        memberId,
+        timestamp: combineDateTime(date, time),
+        temperatureC: temperatureC ? Number(temperatureC) : undefined,
+        complaints: list,
+        notes: notes.trim(),
+      };
+      if (existing) {
+        await SicknessService.updateSymptomLog(memberId, existing.id, payload);
+      } else {
+        await SicknessService.addSymptomLog(memberId, payload);
+      }
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <View className="bg-slate-50 rounded-lg p-3 mb-3 gap-2">
+      <TextInput value={complaints} onChangeText={setComplaints} placeholder="Keluhan (pisahkan koma), mis. demam, batuk, pilek" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+      <View className="flex-row gap-2">
+        <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Tanggal</Text>
+          <TextInput value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
+        <View className="flex-1">
+          <Text className="text-slate-500 text-[10px] mb-1">Jam</Text>
+          <TextInput value={time} onChangeText={setTime} placeholder="HH:MM" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+        </View>
+      </View>
+      <View>
+        <Text className="text-slate-500 text-[10px] mb-1">Suhu Badan (°C, opsional)</Text>
+        <TextInput value={temperatureC} onChangeText={setTemperatureC} keyboardType="decimal-pad" placeholder="mis. 38.5" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+      </View>
+      <TextInput value={notes} onChangeText={setNotes} placeholder="Catatan tambahan (opsional)" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+      <View className="flex-row gap-2">
+        {onCancel && (
+          <Pressable onPress={onCancel} className="flex-1 border border-slate-200 rounded-lg py-2 items-center">
+            <Text className="text-slate-600 text-xs">Batal</Text>
+          </Pressable>
+        )}
+        <Pressable onPress={handleSave} disabled={saving} className="flex-1 bg-teal-700 rounded-lg py-2 items-center disabled:opacity-60">
+          <Text className="text-white text-xs font-medium">{saving ? 'Menyimpan...' : existing ? 'Simpan Perubahan' : 'Simpan Keluhan'}</Text>
         </Pressable>
       </View>
     </View>
