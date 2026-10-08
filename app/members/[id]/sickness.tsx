@@ -295,19 +295,25 @@ function EpisodeCard({
   const [showMedForm, setShowMedForm] = useState(false);
   const [editingMed, setEditingMed] = useState<WithId<AcuteMedication> | null>(null);
   const [editingSymptomLog, setEditingSymptomLog] = useState<WithId<SymptomLog> | null>(null);
+  const [showHospitalForm, setShowHospitalForm] = useState(false);
+  const [editingHospital, setEditingHospital] = useState<WithId<Hospitalization> | null>(null);
   const medModalOpen = showMedForm || !!editingMed || !!editingSymptomLog;
+  const visitModalOpen = showVisitForm || !!editingVisit;
+  const hospitalModalOpen = showHospitalForm || !!editingHospital;
   function closeMedModal() {
     setShowMedForm(false); setEditingMed(null); setEditingSymptomLog(null);
   }
-  const [showHospitalForm, setShowHospitalForm] = useState(false);
-  const [editingHospital, setEditingHospital] = useState<WithId<Hospitalization> | null>(null);
+  function closeVisitModal() { setShowVisitForm(false); setEditingVisit(null); }
+  function closeHospitalModal() { setShowHospitalForm(false); setEditingHospital(null); }
+  function closeAllForms() { closeMedModal(); closeVisitModal(); closeHospitalModal(); }
 
-  // Gabungkan Kunjungan Dokter + Obat + Cek Suhu jadi satu timeline,
+  // Gabungkan Kunjungan Dokter + Rawat Inap + Obat + Cek Suhu jadi satu timeline,
   // dikelompokkan per hari (hari terbaru di atas, urutan dalam hari pagi->malam).
   type TimelineItem =
     | { kind: 'kunjungan'; key: string; sortKey: number; data: WithId<DoctorVisit> }
     | { kind: 'obat'; key: string; sortKey: number; data: WithId<AcuteMedication> }
-    | { kind: 'suhu'; key: string; sortKey: number; data: WithId<SymptomLog> };
+    | { kind: 'suhu'; key: string; sortKey: number; data: WithId<SymptomLog> }
+    | { kind: 'rawat'; key: string; sortKey: number; data: WithId<Hospitalization> };
 
   const timeline: TimelineItem[] = [
     ...visits.map((v) => ({
@@ -321,6 +327,12 @@ function EpisodeCard({
       key: `med-${m.id}`,
       sortKey: combineDateTime(m.startDate, m.administeredTime ?? '00:00'),
       data: m,
+    })),
+    ...hospitalizations.map((h) => ({
+      kind: 'rawat' as const,
+      key: `rawat-${h.id}`,
+      sortKey: combineDateTime(h.admissionDate, '00:00'), // rawat inap dicatat per tanggal masuk
+      data: h,
     })),
     ...symptomLogs.map((s) => ({
       kind: 'suhu' as const,
@@ -412,102 +424,28 @@ function EpisodeCard({
             </Pressable>
           </View>
 
-          {/* Kunjungan Dokter — daftar tampil di Timeline Perawatan di bawah,
-              form tambah/edit tetap di sini karena butuh DoctorPicker khusus */}
-          {editingVisit && (
-            <DoctorVisitForm
-              key={`edit-${editingVisit.id}`}
-              memberId={memberId}
-              episodeId={episode.id}
-              doctors={doctors}
-              householdOwnerUid={householdOwnerUid}
-              existing={editingVisit}
-              onSaved={() => { setEditingVisit(null); onDataChanged(); }}
-              onCancel={() => setEditingVisit(null)}
-              onDoctorCreated={onDoctorCreated}
-            />
-          )}
-          <Pressable onPress={() => { setShowVisitForm(!showVisitForm); setEditingVisit(null); }} className="mb-3">
-            <Text className="text-teal-700 text-xs">{showVisitForm ? 'Batal' : '+ Tambah Kunjungan Dokter'}</Text>
-          </Pressable>
-          {showVisitForm && (
-            <DoctorVisitForm
-              memberId={memberId}
-              episodeId={episode.id}
-              doctors={doctors}
-              householdOwnerUid={householdOwnerUid}
-              onSaved={() => { setShowVisitForm(false); onDataChanged(); }}
-              onDoctorCreated={onDoctorCreated}
-            />
-          )}
-
-
-          {/* Rawat Inap */}
-          <Text className="text-slate-700 text-xs font-semibold mb-2 mt-2">Rawat Inap</Text>
-          {hospitalizations.map((h) => {
-            const totalBiayaKamar = h.roomCostPerDay * h.lengthOfStayDays;
-            return (
-              <View key={h.id} className="bg-slate-50 rounded-lg p-2.5 mb-2">
-                <View className="flex-row justify-between items-start">
-                  <View className="flex-1">
-                    <Text className="text-slate-900 text-xs font-medium">
-                      {h.hospitalName} · {h.roomClass}
-                    </Text>
-                    <Text className="text-slate-500 text-[11px]">
-                      Masuk {h.admissionDate} · {h.lengthOfStayDays} hari
-                      {h.dischargeDate ? ` (keluar ${h.dischargeDate})` : ' (masih dirawat)'}
-                    </Text>
-                    <Text className="text-slate-500 text-[11px]">
-                      Rp{h.roomCostPerDay.toLocaleString('id-ID')}/hari · Total kamar Rp{totalBiayaKamar.toLocaleString('id-ID')}
-                    </Text>
-                    {h.treatingDoctors.length > 0 && (
-                      <Text className="text-slate-500 text-[11px] mt-0.5">
-                        Dokter: {h.treatingDoctors.map((d) => d.name).join(', ')}
-                      </Text>
-                    )}
-                  </View>
-                  <Pressable onPress={() => { setEditingHospital(h); setShowHospitalForm(false); }} className="ml-2 px-2 py-1">
-                    <Text className="text-teal-700 text-[11px]">Edit</Text>
-                  </Pressable>
-                </View>
-              </View>
-            );
-          })}
-          {editingHospital && (
-            <HospitalizationForm
-              key={`edit-${editingHospital.id}`}
-              memberId={memberId}
-              episodeId={episode.id}
-              doctors={doctors}
-              householdOwnerUid={householdOwnerUid}
-              existing={editingHospital}
-              onSaved={() => { setEditingHospital(null); onDataChanged(); }}
-              onCancel={() => setEditingHospital(null)}
-              onDoctorCreated={onDoctorCreated}
-            />
-          )}
-          <Pressable onPress={() => { setShowHospitalForm(!showHospitalForm); setEditingHospital(null); }} className="mb-3">
-            <Text className="text-teal-700 text-xs">{showHospitalForm ? 'Batal' : '+ Tambah Data Rawat Inap'}</Text>
-          </Pressable>
-          {showHospitalForm && (
-            <HospitalizationForm
-              memberId={memberId}
-              episodeId={episode.id}
-              doctors={doctors}
-              householdOwnerUid={householdOwnerUid}
-              onSaved={() => { setShowHospitalForm(false); onDataChanged(); }}
-              onDoctorCreated={onDoctorCreated}
-            />
-          )}
-
-          {/* Timeline Perawatan: Kunjungan Dokter + Obat + Cek Suhu, dikelompokkan per hari */}
+          {/* Timeline Perawatan: Kunjungan Dokter + Rawat Inap + Obat + Cek Suhu, satu urutan per hari */}
           <Text className="text-slate-700 text-xs font-semibold mb-2 mt-2">Timeline Perawatan</Text>
-          <Pressable
-            onPress={() => { setEditingMed(null); setEditingSymptomLog(null); setShowMedForm(true); }}
-            className="mb-3"
-          >
-            <Text className="text-teal-700 text-xs">+ Tambah Obat / Cek Suhu</Text>
-          </Pressable>
+          <View className="flex-row flex-wrap gap-2 mb-3">
+            <Pressable
+              onPress={() => { closeAllForms(); setShowMedForm(true); }}
+              className="bg-teal-50 rounded-lg px-3 py-1.5"
+            >
+              <Text className="text-teal-700 text-xs font-medium">+ Obat / Cek Suhu</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { closeAllForms(); setShowVisitForm(true); }}
+              className="bg-teal-50 rounded-lg px-3 py-1.5"
+            >
+              <Text className="text-teal-700 text-xs font-medium">+ Kunjungan Dokter</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { closeAllForms(); setShowHospitalForm(true); }}
+              className="bg-teal-50 rounded-lg px-3 py-1.5"
+            >
+              <Text className="text-teal-700 text-xs font-medium">+ Rawat Inap</Text>
+            </Pressable>
+          </View>
           {dayGroups.length === 0 ? (
             <Text className="text-slate-400 text-xs mb-2">Belum ada catatan.</Text>
           ) : (
@@ -533,7 +471,7 @@ function EpisodeCard({
                               )}
                             </View>
                             <Pressable
-                              onPress={() => { setEditingVisit(v); setShowVisitForm(false); }}
+                              onPress={() => { closeAllForms(); setEditingVisit(v); }}
                               className="ml-2 px-2 py-1"
                             >
                               <Text className="text-teal-700 text-[11px]">Edit</Text>
@@ -561,13 +499,46 @@ function EpisodeCard({
                               {m.specialNotes && <Text className="text-slate-500 text-[11px]">{m.specialNotes}</Text>}
                             </View>
                             <View className="flex-row gap-2 ml-2">
-                              <Pressable onPress={() => { setEditingMed(m); setEditingSymptomLog(null); setShowMedForm(false); }}>
+                              <Pressable onPress={() => { closeAllForms(); setEditingMed(m); }}>
                                 <Text className="text-teal-700 text-[11px]">Edit</Text>
                               </Pressable>
                               <Pressable onPress={() => handleDeleteMed(m)}>
                                 <Text className="text-red-600 text-[11px]">Hapus</Text>
                               </Pressable>
                             </View>
+                          </View>
+                        </View>
+                      );
+                    }
+                    if (item.kind === 'rawat') {
+                      const h = item.data;
+                      const totalBiayaKamar = h.roomCostPerDay * h.lengthOfStayDays;
+                      return (
+                        <View key={item.key} className="bg-indigo-50 rounded-lg p-2.5">
+                          <View className="flex-row justify-between items-start">
+                            <View className="flex-1">
+                              <Text className="text-slate-900 text-xs font-medium">
+                                🏥 Rawat Inap — {h.hospitalName} · {h.roomClass}
+                              </Text>
+                              <Text className="text-slate-500 text-[11px]">
+                                Masuk {h.admissionDate} · {h.lengthOfStayDays} hari
+                                {h.dischargeDate ? ` (keluar ${h.dischargeDate})` : ' (masih dirawat)'}
+                              </Text>
+                              <Text className="text-slate-500 text-[11px]">
+                                Rp{h.roomCostPerDay.toLocaleString('id-ID')}/hari · Total kamar Rp{totalBiayaKamar.toLocaleString('id-ID')}
+                              </Text>
+                              {h.treatingDoctors.length > 0 && (
+                                <Text className="text-slate-500 text-[11px] mt-0.5">
+                                  Dokter: {h.treatingDoctors.map((d) => d.name).join(', ')}
+                                </Text>
+                              )}
+                            </View>
+                            <Pressable
+                              onPress={() => { closeAllForms(); setEditingHospital(h); }}
+                              className="ml-2 px-2 py-1"
+                            >
+                              <Text className="text-teal-700 text-[11px]">Edit</Text>
+                            </Pressable>
                           </View>
                         </View>
                       );
@@ -583,7 +554,7 @@ function EpisodeCard({
                             <Text className="text-slate-500 text-[11px] mt-0.5">Jam {timeFromTimestamp(s.timestamp)}</Text>
                           </View>
                           <View className="flex-row gap-2 ml-2">
-                            <Pressable onPress={() => { setEditingSymptomLog(s); setEditingMed(null); setShowMedForm(false); }}>
+                            <Pressable onPress={() => { closeAllForms(); setEditingSymptomLog(s); }}>
                               <Text className="text-teal-700 text-[11px]">Edit</Text>
                             </Pressable>
                             <Pressable onPress={() => handleDeleteSymptomLog(s)}>
@@ -598,35 +569,84 @@ function EpisodeCard({
               </View>
             ))
           )}
-          {/* Form tambah/edit obat & cek suhu tampil sebagai pop up */}
-          <Modal visible={medModalOpen} transparent animationType="fade" onRequestClose={closeMedModal}>
-            <View className="flex-1 bg-black/40 items-center justify-center p-4">
-              <View className="bg-white rounded-2xl w-full max-w-[480px] max-h-[90%] overflow-hidden">
-                <View className="flex-row justify-between items-center px-4 pt-4 pb-2">
-                  <Text className="text-slate-900 font-semibold text-sm">
-                    {editingMed || editingSymptomLog ? 'Edit Catatan' : 'Tambah Obat / Cek Suhu'}
-                  </Text>
-                  <Pressable onPress={closeMedModal} hitSlop={8}>
-                    <Text className="text-slate-500 text-base">✕</Text>
-                  </Pressable>
-                </View>
-                <ScrollView contentContainerClassName="px-4 pb-4">
-                  <MedicationEntryForm
-                    key={`med-${editingMed?.id ?? editingSymptomLog?.id ?? 'new'}`}
-                    memberId={memberId}
-                    episodeId={episode.id}
-                    existing={editingMed ?? undefined}
-                    existingSymptomLog={editingSymptomLog ?? undefined}
-                    onSaved={() => { closeMedModal(); onDataChanged(); }}
-                    onCancel={closeMedModal}
-                  />
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
+          {/* Semua form tambah/edit tampil sebagai pop up */}
+          <FormModal
+            visible={medModalOpen}
+            title={editingMed || editingSymptomLog ? 'Edit Catatan' : 'Tambah Obat / Cek Suhu'}
+            onClose={closeMedModal}
+          >
+            <MedicationEntryForm
+              key={`med-${editingMed?.id ?? editingSymptomLog?.id ?? 'new'}`}
+              memberId={memberId}
+              episodeId={episode.id}
+              existing={editingMed ?? undefined}
+              existingSymptomLog={editingSymptomLog ?? undefined}
+              onSaved={() => { closeMedModal(); onDataChanged(); }}
+              onCancel={closeMedModal}
+            />
+          </FormModal>
+          <FormModal
+            visible={visitModalOpen}
+            title={editingVisit ? 'Edit Kunjungan Dokter' : 'Tambah Kunjungan Dokter'}
+            onClose={closeVisitModal}
+          >
+            <DoctorVisitForm
+              key={`visit-${editingVisit?.id ?? 'new'}`}
+              memberId={memberId}
+              episodeId={episode.id}
+              doctors={doctors}
+              householdOwnerUid={householdOwnerUid}
+              existing={editingVisit ?? undefined}
+              onSaved={() => { closeVisitModal(); onDataChanged(); }}
+              onCancel={closeVisitModal}
+              onDoctorCreated={onDoctorCreated}
+            />
+          </FormModal>
+          <FormModal
+            visible={hospitalModalOpen}
+            title={editingHospital ? 'Edit Rawat Inap' : 'Tambah Rawat Inap'}
+            onClose={closeHospitalModal}
+          >
+            <HospitalizationForm
+              key={`hospital-${editingHospital?.id ?? 'new'}`}
+              memberId={memberId}
+              episodeId={episode.id}
+              doctors={doctors}
+              householdOwnerUid={householdOwnerUid}
+              existing={editingHospital ?? undefined}
+              onSaved={() => { closeHospitalModal(); onDataChanged(); }}
+              onCancel={closeHospitalModal}
+              onDoctorCreated={onDoctorCreated}
+            />
+          </FormModal>
         </View>
       )}
     </View>
+  );
+}
+
+function FormModal({
+  visible, title, onClose, children,
+}: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View className="flex-1 bg-black/40 items-center justify-center p-4">
+        <View className="bg-white rounded-2xl w-full max-w-[480px] max-h-[90%] overflow-hidden">
+          <View className="flex-row justify-between items-center px-4 pt-4 pb-2">
+            <Text className="text-slate-900 font-semibold text-sm">{title}</Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Text className="text-slate-500 text-base">✕</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerClassName="px-4 pb-4">{children}</ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
