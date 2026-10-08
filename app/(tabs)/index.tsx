@@ -38,6 +38,15 @@ export default function DashboardScreen() {
       const ownerUid = await ensureHouseholdAndGetActiveOwner(user.uid, user.email);
       const members = await getFamilyMembers(ownerUid);
       const results = await Promise.all(members.map((m) => getMemberHealthSummary(m)));
+      // Yang sedang sakit di atas (episode mulai paling baru dulu), sisanya urut nama
+      results.sort((a, b) => {
+        const sa = a.activeSickness;
+        const sb = b.activeSickness;
+        if (sa && sb) return sb.startDate.localeCompare(sa.startDate);
+        if (sa) return -1;
+        if (sb) return 1;
+        return a.member.name.localeCompare(b.member.name);
+      });
       setSummaries(results);
     } finally {
       setLoading(false);

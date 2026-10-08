@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 // app/members/[id]/sickness.tsx
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Alert, Modal } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { auth } from '../../../services/firebaseConfig';
 import { ensureHouseholdAndGetActiveOwner } from '../../../services/householdService';
@@ -295,6 +295,10 @@ function EpisodeCard({
   const [showMedForm, setShowMedForm] = useState(false);
   const [editingMed, setEditingMed] = useState<WithId<AcuteMedication> | null>(null);
   const [editingSymptomLog, setEditingSymptomLog] = useState<WithId<SymptomLog> | null>(null);
+  const medModalOpen = showMedForm || !!editingMed || !!editingSymptomLog;
+  function closeMedModal() {
+    setShowMedForm(false); setEditingMed(null); setEditingSymptomLog(null);
+  }
   const [showHospitalForm, setShowHospitalForm] = useState(false);
   const [editingHospital, setEditingHospital] = useState<WithId<Hospitalization> | null>(null);
 
@@ -498,6 +502,12 @@ function EpisodeCard({
 
           {/* Timeline Perawatan: Kunjungan Dokter + Obat + Cek Suhu, dikelompokkan per hari */}
           <Text className="text-slate-700 text-xs font-semibold mb-2 mt-2">Timeline Perawatan</Text>
+          <Pressable
+            onPress={() => { setEditingMed(null); setEditingSymptomLog(null); setShowMedForm(true); }}
+            className="mb-3"
+          >
+            <Text className="text-teal-700 text-xs">+ Tambah Obat / Cek Suhu</Text>
+          </Pressable>
           {dayGroups.length === 0 ? (
             <Text className="text-slate-400 text-xs mb-2">Belum ada catatan.</Text>
           ) : (
@@ -588,29 +598,32 @@ function EpisodeCard({
               </View>
             ))
           )}
-          {(editingMed || editingSymptomLog) && (
-            <MedicationEntryForm
-              key={`edit-${editingMed?.id ?? editingSymptomLog?.id}`}
-              memberId={memberId}
-              episodeId={episode.id}
-              existing={editingMed ?? undefined}
-              existingSymptomLog={editingSymptomLog ?? undefined}
-              onSaved={() => { setEditingMed(null); setEditingSymptomLog(null); onDataChanged(); }}
-              onCancel={() => { setEditingMed(null); setEditingSymptomLog(null); }}
-            />
-          )}
-          <Pressable
-            onPress={() => { setShowMedForm(!showMedForm); setEditingMed(null); setEditingSymptomLog(null); }}
-          >
-            <Text className="text-teal-700 text-xs">{showMedForm ? 'Batal' : '+ Tambah Obat / Cek Suhu'}</Text>
-          </Pressable>
-          {showMedForm && (
-            <MedicationEntryForm
-              memberId={memberId}
-              episodeId={episode.id}
-              onSaved={() => { setShowMedForm(false); onDataChanged(); }}
-            />
-          )}
+          {/* Form tambah/edit obat & cek suhu tampil sebagai pop up */}
+          <Modal visible={medModalOpen} transparent animationType="fade" onRequestClose={closeMedModal}>
+            <View className="flex-1 bg-black/40 items-center justify-center p-4">
+              <View className="bg-white rounded-2xl w-full max-w-[480px] max-h-[90%] overflow-hidden">
+                <View className="flex-row justify-between items-center px-4 pt-4 pb-2">
+                  <Text className="text-slate-900 font-semibold text-sm">
+                    {editingMed || editingSymptomLog ? 'Edit Catatan' : 'Tambah Obat / Cek Suhu'}
+                  </Text>
+                  <Pressable onPress={closeMedModal} hitSlop={8}>
+                    <Text className="text-slate-500 text-base">✕</Text>
+                  </Pressable>
+                </View>
+                <ScrollView contentContainerClassName="px-4 pb-4">
+                  <MedicationEntryForm
+                    key={`med-${editingMed?.id ?? editingSymptomLog?.id ?? 'new'}`}
+                    memberId={memberId}
+                    episodeId={episode.id}
+                    existing={editingMed ?? undefined}
+                    existingSymptomLog={editingSymptomLog ?? undefined}
+                    onSaved={() => { closeMedModal(); onDataChanged(); }}
+                    onCancel={closeMedModal}
+                  />
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
         </View>
       )}
     </View>
