@@ -128,7 +128,7 @@ export default function SicknessScreen() {
   }
 
   async function handleSaveEditEpisode() {
-    if (!memberId || !editingEpisodeId || !title.trim()) return;
+    if (!memberId || !editingEpisodeId || !title.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return;
     await SicknessService.updateEpisode(memberId, editingEpisodeId, {
       title: title.trim(),
       startDate,
@@ -404,6 +404,7 @@ function EpisodeCard({
               form tambah/edit tetap di sini karena butuh DoctorPicker khusus */}
           {editingVisit && (
             <DoctorVisitForm
+              key={`edit-${editingVisit.id}`}
               memberId={memberId}
               episodeId={episode.id}
               doctors={doctors}
@@ -462,6 +463,7 @@ function EpisodeCard({
           })}
           {editingHospital && (
             <HospitalizationForm
+              key={`edit-${editingHospital.id}`}
               memberId={memberId}
               episodeId={episode.id}
               doctors={doctors}
@@ -580,6 +582,7 @@ function EpisodeCard({
           )}
           {(editingMed || editingSymptomLog) && (
             <MedicationEntryForm
+              key={`edit-${editingMed?.id ?? editingSymptomLog?.id}`}
               memberId={memberId}
               episodeId={episode.id}
               existing={editingMed ?? undefined}
