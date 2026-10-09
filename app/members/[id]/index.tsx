@@ -89,7 +89,7 @@ export default function MemberDetailScreen() {
     );
   }
 
-  const { member, activeSickness, latestWeight, lowStockMeds } = summary;
+  const { member, activeSickness, latestWeight } = summary;
 
   return (
     <View className="flex-1 bg-slate-50">
@@ -137,7 +137,6 @@ export default function MemberDetailScreen() {
           <InfoPill label="Status" value={activeSickness.title} tone="danger" />
         )}
         <InfoPill label="Berat Terakhir" value={latestWeight ? `${latestWeight} kg` : '-'} tone="neutral" />
-        <InfoPill label="Stok Obat Menipis" value={String(lowStockMeds.length)} tone={lowStockMeds.length ? 'warning' : 'ok'} />
       </View>
 
       {/* Menu modul */}

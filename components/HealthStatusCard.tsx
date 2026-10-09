@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function HealthStatusCard({ summary, onPress, onAddWeight }: Props) {
-  const { member, activeSickness, latestLab, lowStockMeds, latestWeight, latestWeightDate, latestUpdate } = summary;
+  const { member, activeSickness, latestLab, latestWeight, latestWeightDate, latestUpdate } = summary;
   const ageLabel = formatAge(member.birthDate);
 
   // Ambil maksimal 3 parameter lab paling relevan untuk preview cepat
@@ -94,7 +94,7 @@ export default function HealthStatusCard({ summary, onPress, onAddWeight }: Prop
         </View>
       )}
 
-      {/* Info tambahan: berat badan & stok obat rendah */}
+      {/* Info tambahan: berat badan */}
       <View className="flex-row justify-between items-center pt-2 border-t border-slate-100">
         <View className="flex-row items-center">
           <Text className="text-slate-500 text-xs">
@@ -106,11 +106,6 @@ export default function HealthStatusCard({ summary, onPress, onAddWeight }: Prop
             </Pressable>
           )}
         </View>
-        {lowStockMeds.length > 0 && (
-          <Text className="text-amber-600 text-xs font-medium">
-            ⚠ {lowStockMeds.length} obat menipis
-          </Text>
-        )}
       </View>
     </Pressable>
   );

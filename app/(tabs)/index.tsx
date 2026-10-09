@@ -84,7 +84,6 @@ export default function DashboardScreen() {
   }, [loadDashboard]);
 
   const activeSicknessCount = summaries.filter((s) => s.activeSickness).length;
-  const lowStockCount = summaries.reduce((sum, s) => sum + s.lowStockMeds.length, 0);
 
   async function handleExportAll() {
     setExporting(true);
@@ -158,11 +157,6 @@ export default function DashboardScreen() {
           label="Sedang Sakit"
           value={activeSicknessCount}
           tone={activeSicknessCount > 0 ? 'danger' : 'ok'}
-        />
-        <SummaryPill
-          label="Stok Obat Menipis"
-          value={lowStockCount}
-          tone={lowStockCount > 0 ? 'warning' : 'ok'}
         />
         <SummaryPill label="Total Profil" value={summaries.length} tone="neutral" />
       </View>
