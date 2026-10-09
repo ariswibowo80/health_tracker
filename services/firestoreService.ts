@@ -286,7 +286,7 @@ export interface MemberHealthSummary {
   latestWeight: number | null;
   latestWeightDate: string | null;
   /** Entri paling baru di Timeline Perawatan (obat, suhu, keluhan, kunjungan, rawat inap) */
-  latestUpdate: { icon: string; text: string; at: number } | null;
+  latestUpdate: { icon: string; text: string; at: number; temperatureC?: number } | null;
 }
 
 /**
@@ -307,7 +307,7 @@ export async function getMemberHealthSummary(
   ]);
 
   // Entri terbaru di timeline: pakai aturan waktu yang sama dengan halaman Catatan Sakit
-  const candidates: { icon: string; text: string; at: number }[] = [
+  const candidates: { icon: string; text: string; at: number; temperatureC?: number }[] = [
     ...visits.map((v) => ({
       icon: '🩺',
       text: `Kunjungan ${v.doctorName}${v.diagnosis ? ` — ${v.diagnosis}` : ''}`,
@@ -317,6 +317,7 @@ export async function getMemberHealthSummary(
       icon: '💊',
       text: `${m.name}${m.isAntibiotic ? ' (antibiotik)' : ''} — ${m.dose}`,
       at: combineDateTime(m.startDate, m.administeredTime ?? '00:00'),
+      temperatureC: m.temperatureC,
     })),
     ...hospitalizations.map((h) => ({
       icon: '🏥',
@@ -327,8 +328,9 @@ export async function getMemberHealthSummary(
       icon: s.complaints?.length ? '🤒' : '🌡️',
       text: s.complaints?.length
         ? `Keluhan — ${s.complaints.join(', ')}`
-        : `Cek suhu — ${s.temperatureC !== undefined ? `${s.temperatureC}°C` : '-'}`,
+        : 'Cek suhu',
       at: s.timestamp,
+      temperatureC: s.temperatureC,
     })),
   ];
   const latestUpdate = candidates.reduce<(typeof candidates)[number] | null>(
