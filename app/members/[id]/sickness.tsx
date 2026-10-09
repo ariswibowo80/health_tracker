@@ -12,52 +12,23 @@ import {
 import ScreenHeader from '../../../components/ScreenHeader';
 import DoctorPicker from '../../../components/DoctorPicker';
 import { looksLikeAntibiotic, looksLikeAntiviral } from '../../../utils/medication';
+import {
+  todayISO, nowHHMM, dateFromTimestamp, timeFromTimestamp, combineDateTime,
+} from '../../../utils/datetime';
 
 type WithId<T> = T & { id: string };
 
-/** Format Date jadi "YYYY-MM-DD" berdasarkan zona waktu lokal (bukan UTC),
- * supaya konsisten dengan combineDateTime yang membaca jam lokal. */
-function localDateISO(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+type TimelineFilter = 'semua' | 'obat' | 'antibiotik' | 'suhu' | 'keluhan' | 'kunjungan' | 'rawat';
 
-function todayISO() {
-  return localDateISO(new Date());
-}
-
-function nowHHMM() {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
-function isValidDateObj(d: Date): boolean {
-  return !isNaN(d.getTime());
-}
-
-/** Format epoch ms jadi "YYYY-MM-DD", untuk mengisi form edit.
- * Kalau timestamp korup/tidak valid (mis. data lama sebelum fitur jam/suhu
- * ada), fallback ke hari ini alih-alih crash seluruh halaman. */
-function dateFromTimestamp(ts: number) {
-  const d = new Date(ts);
-  return isValidDateObj(d) ? localDateISO(d) : todayISO();
-}
-
-/** Format epoch ms jadi "HH:MM", dengan fallback aman yang sama seperti di atas. */
-function timeFromTimestamp(ts: number) {
-  const d = new Date(ts);
-  if (!isValidDateObj(d)) return '00:00';
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
-/** Gabungkan tanggal (YYYY-MM-DD) + jam (HH:MM) jadi epoch ms lokal.
- * Tanggal/jam yang formatnya tidak valid (data lama, atau input kosong)
- * di-fallback ke hari ini / 00:00, supaya timeline tidak pernah crash. */
-function combineDateTime(date: string, time: string): number {
-  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO();
-  const validTime = /^\d{2}:\d{2}$/.test(time) ? time : '00:00';
-  const d = new Date(`${validDate}T${validTime}:00`);
-  return isValidDateObj(d) ? d.getTime() : Date.now();
-}
+const TIMELINE_FILTERS: { value: TimelineFilter; label: string }[] = [
+  { value: 'semua', label: 'Semua' },
+  { value: 'obat', label: '💊 Obat' },
+  { value: 'antibiotik', label: 'Antibiotik' },
+  { value: 'suhu', label: '🌡️ Suhu' },
+  { value: 'keluhan', label: '🤒 Keluhan' },
+  { value: 'kunjungan', label: '🩺 Dokter' },
+  { value: 'rawat', label: '🏥 Rawat Inap' },
+];
 
 const MED_FORMS: MedicationForm[] = ['sirup', 'tablet', 'puyer', 'tetes', 'semprot', 'nebulizer', 'suntik', 'lainnya'];
 
@@ -298,6 +269,7 @@ function EpisodeCard({
   const [editingComplaint, setEditingComplaint] = useState<WithId<SymptomLog> | null>(null);
   const [editingMed, setEditingMed] = useState<WithId<AcuteMedication> | null>(null);
   const [editingSymptomLog, setEditingSymptomLog] = useState<WithId<SymptomLog> | null>(null);
+  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('semua');
   const [showHospitalForm, setShowHospitalForm] = useState(false);
   const [editingHospital, setEditingHospital] = useState<WithId<Hospitalization> | null>(null);
   const medModalOpen = showMedForm || !!editingMed || !!editingSymptomLog;
@@ -351,7 +323,18 @@ function EpisodeCard({
 
   // Kelompokkan per hari (YYYY-MM-DD), lalu urutkan grup hari dari terbaru ke terlama
   const timelineByDay = new Map<string, TimelineItem[]>();
-  for (const item of timeline) {
+  const filteredTimeline = timeline.filter((item) => {
+    switch (timelineFilter) {
+      case 'semua': return true;
+      case 'obat': return item.kind === 'obat';
+      case 'antibiotik': return item.kind === 'obat' && !!item.data.isAntibiotic;
+      case 'suhu': return item.kind === 'suhu';
+      case 'keluhan': return item.kind === 'keluhan';
+      case 'kunjungan': return item.kind === 'kunjungan';
+      case 'rawat': return item.kind === 'rawat';
+    }
+  });
+  for (const item of filteredTimeline) {
     const dayKey = dateFromTimestamp(item.sortKey);
     const group = timelineByDay.get(dayKey) ?? [];
     group.push(item);
@@ -495,8 +478,24 @@ function EpisodeCard({
               <Text className="text-teal-700 text-xs font-medium">+ Rawat Inap</Text>
             </Pressable>
           </View>
+          {/* Filter jenis catatan */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerClassName="gap-1.5">
+            {TIMELINE_FILTERS.map((f) => (
+              <Pressable
+                key={f.value}
+                onPress={() => setTimelineFilter(f.value)}
+                className={`px-3 py-1 rounded-full border ${timelineFilter === f.value ? 'bg-teal-700 border-teal-700' : 'border-slate-200'}`}
+              >
+                <Text className={`text-[11px] ${timelineFilter === f.value ? 'text-white font-medium' : 'text-slate-600'}`}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
           {dayGroups.length === 0 ? (
-            <Text className="text-slate-400 text-xs mb-2">Belum ada catatan.</Text>
+            <Text className="text-slate-400 text-xs mb-2">
+              {timelineFilter === 'semua' ? 'Belum ada catatan.' : 'Tidak ada catatan untuk filter ini.'}
+            </Text>
           ) : (
             dayGroups.map(([dayKey, items]) => (
               <View key={dayKey} className="mb-3">

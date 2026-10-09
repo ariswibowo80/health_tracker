@@ -5,7 +5,7 @@
 //  - Web (lebar >= 768px): grid multi-kolom seperti dashboard admin.
 
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, useWindowDimensions, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, TextInput, ScrollView, useWindowDimensions, ActivityIndicator, Pressable, Modal } from 'react-native';
 import { router } from 'expo-router';
 
 import { auth } from '../../services/firebaseConfig';
@@ -20,6 +20,7 @@ import {
 } from '../../services/firestoreService';
 import HealthStatusCard from '../../components/HealthStatusCard';
 import { exportFamilyReportToExcel, ExportBundle } from '../../utils/excelExport';
+import { todayISO } from '../../utils/datetime';
 
 export default function DashboardScreen() {
   const { width } = useWindowDimensions();
@@ -28,6 +29,31 @@ export default function DashboardScreen() {
   const [summaries, setSummaries] = useState<MemberHealthSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+
+  // Pop up catat berat badan terakhir
+  const [weightTarget, setWeightTarget] = useState<MemberHealthSummary | null>(null);
+  const [weightInput, setWeightInput] = useState('');
+  const [weightDate, setWeightDate] = useState(todayISO());
+  const [savingWeight, setSavingWeight] = useState(false);
+
+  function openWeightModal(s: MemberHealthSummary) {
+    setWeightTarget(s);
+    setWeightInput(s.latestWeight ? String(s.latestWeight) : '');
+    setWeightDate(todayISO());
+  }
+
+  async function handleSaveWeight() {
+    const kg = Number(weightInput.replace(',', '.'));
+    if (!weightTarget || !isFinite(kg) || kg <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(weightDate)) return;
+    setSavingWeight(true);
+    try {
+      await LifestyleService.saveWeight(weightTarget.member.id, weightDate, kg);
+      setWeightTarget(null);
+      await loadDashboard();
+    } finally {
+      setSavingWeight(false);
+    }
+  }
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -163,10 +189,53 @@ export default function DashboardScreen() {
               key={s.member.id}
               summary={s}
               onPress={() => router.push(`/members/${s.member.id}`)}
+              onAddWeight={() => openWeightModal(s)}
             />
           ))}
         </View>
       )}
+
+      <Modal visible={!!weightTarget} transparent animationType="fade" onRequestClose={() => setWeightTarget(null)}>
+        <View className="flex-1 bg-black/40 items-center justify-center p-4">
+          <View className="bg-white rounded-2xl w-full max-w-[400px] p-4">
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="text-slate-900 font-semibold text-sm">
+                Berat Badan Terakhir — {weightTarget?.member.name}
+              </Text>
+              <Pressable onPress={() => setWeightTarget(null)} hitSlop={8}>
+                <Text className="text-slate-500 text-base">✕</Text>
+              </Pressable>
+            </View>
+            <Text className="text-slate-500 text-[10px] mb-1">Berat Badan (kg)</Text>
+            <TextInput
+              value={weightInput}
+              onChangeText={setWeightInput}
+              keyboardType="decimal-pad"
+              placeholder="mis. 23.5"
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
+            />
+            <Text className="text-slate-500 text-[10px] mb-1">Tanggal</Text>
+            <TextInput
+              value={weightDate}
+              onChangeText={setWeightDate}
+              placeholder="YYYY-MM-DD"
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4"
+            />
+            <View className="flex-row gap-2">
+              <Pressable onPress={() => setWeightTarget(null)} className="flex-1 border border-slate-200 rounded-xl py-2.5 items-center">
+                <Text className="text-slate-600 text-sm">Batal</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSaveWeight}
+                disabled={savingWeight}
+                className="flex-1 bg-teal-700 rounded-xl py-2.5 items-center disabled:opacity-60"
+              >
+                <Text className="text-white text-sm font-medium">{savingWeight ? 'Menyimpan...' : 'Simpan'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
