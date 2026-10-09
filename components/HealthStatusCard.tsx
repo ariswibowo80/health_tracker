@@ -5,6 +5,7 @@ import { getLabStatus, STATUS_COLOR_MAP, REFERENCE_RANGES } from '../constants/r
 import { LabParameterKey } from '../types/health';
 import { formatAge } from '../utils/age';
 import { formatShortDateTime } from '../utils/datetime';
+import TemperatureBadge from './TemperatureBadge';
 
 interface Props {
   summary: MemberHealthSummary;
@@ -68,7 +69,12 @@ export default function HealthStatusCard({ summary, onPress, onAddWeight }: Prop
           <Text className="text-slate-800 text-xs mt-0.5" numberOfLines={2}>
             {latestUpdate.icon} {latestUpdate.text}
           </Text>
-          <Text className="text-slate-500 text-[11px]">{formatShortDateTime(latestUpdate.at)}</Text>
+          {latestUpdate.temperatureC !== undefined && (
+            <View className="mt-1">
+              <TemperatureBadge celsius={latestUpdate.temperatureC} />
+            </View>
+          )}
+          <Text className="text-slate-500 text-[11px] mt-1">{formatShortDateTime(latestUpdate.at)}</Text>
         </View>
       )}
 
