@@ -4,14 +4,17 @@ import { MemberHealthSummary } from '../services/firestoreService';
 import { getLabStatus, STATUS_COLOR_MAP, REFERENCE_RANGES } from '../constants/referenceRanges';
 import { LabParameterKey } from '../types/health';
 import { formatAge } from '../utils/age';
+import { formatShortDateTime } from '../utils/datetime';
 
 interface Props {
   summary: MemberHealthSummary;
   onPress?: () => void;
+  /** Kalau diisi, tampil tombol "+ Berat" untuk mencatat berat badan terbaru */
+  onAddWeight?: () => void;
 }
 
-export default function HealthStatusCard({ summary, onPress }: Props) {
-  const { member, activeSickness, latestLab, lowStockMeds, latestWeight } = summary;
+export default function HealthStatusCard({ summary, onPress, onAddWeight }: Props) {
+  const { member, activeSickness, latestLab, lowStockMeds, latestWeight, latestWeightDate, latestUpdate } = summary;
   const ageLabel = formatAge(member.birthDate);
 
   // Ambil maksimal 3 parameter lab paling relevan untuk preview cepat
@@ -58,6 +61,17 @@ export default function HealthStatusCard({ summary, onPress }: Props) {
         </View>
       )}
 
+      {/* Update terakhir dari Timeline Perawatan */}
+      {latestUpdate && (
+        <View className="bg-slate-50 rounded-xl px-3 py-2 mb-2">
+          <Text className="text-slate-400 text-[10px] uppercase font-semibold">Update terakhir</Text>
+          <Text className="text-slate-800 text-xs mt-0.5" numberOfLines={2}>
+            {latestUpdate.icon} {latestUpdate.text}
+          </Text>
+          <Text className="text-slate-500 text-[11px]">{formatShortDateTime(latestUpdate.at)}</Text>
+        </View>
+      )}
+
       {/* Preview parameter lab (dewasa) */}
       {previewKeys.length > 0 && latestLab && (
         <View className="flex-row flex-wrap gap-2 mb-2">
@@ -82,9 +96,16 @@ export default function HealthStatusCard({ summary, onPress }: Props) {
 
       {/* Info tambahan: berat badan & stok obat rendah */}
       <View className="flex-row justify-between items-center pt-2 border-t border-slate-100">
-        <Text className="text-slate-500 text-xs">
-          {latestWeight ? `Berat: ${latestWeight} kg` : 'Belum ada data berat'}
-        </Text>
+        <View className="flex-row items-center">
+          <Text className="text-slate-500 text-xs">
+            {latestWeight ? `Berat: ${latestWeight} kg${latestWeightDate ? ` (${latestWeightDate})` : ''}` : 'Belum ada data berat'}
+          </Text>
+          {onAddWeight && (
+            <Pressable onPress={onAddWeight} hitSlop={8} className="ml-2 bg-teal-50 rounded-md px-2 py-0.5">
+              <Text className="text-teal-700 text-[11px] font-medium">+ Berat</Text>
+            </Pressable>
+          )}
+        </View>
         {lowStockMeds.length > 0 && (
           <Text className="text-amber-600 text-xs font-medium">
             ⚠ {lowStockMeds.length} obat menipis

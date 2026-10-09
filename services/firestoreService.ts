@@ -34,6 +34,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
+import { combineDateTime } from '../utils/datetime';
 import {
   FamilyMember,
   Doctor,
@@ -255,6 +256,17 @@ export const LifestyleService = {
   listMaintenanceMedications: (memberId: string) =>
     listDocs<MaintenanceMedication>(memberId, 'maintenanceMedications', 'startDate'),
 
+  /** Simpan berat badan untuk satu tanggal: update log hari itu kalau sudah ada, kalau belum buat baru. */
+  async saveWeight(memberId: string, date: string, weightKg: number) {
+    const logs = await listDocs<DailyLog>(memberId, 'dailyLogs', 'date', 60);
+    const existing = logs.find((l) => l.date === date);
+    if (existing) {
+      await updateDocById(memberId, 'dailyLogs', existing.id, { weightKg });
+    } else {
+      await createDoc(subcollection(memberId, 'dailyLogs'), { memberId, date, weightKg });
+    }
+  },
+
   /** Kurangi stok obat rutin setelah dikonsumsi (dipanggil dari tombol "Sudah minum") */
   async decrementStock(memberId: string, medId: string, currentStock: number) {
     await updateDocById(memberId, 'maintenanceMedications', medId, {
@@ -273,6 +285,9 @@ export interface MemberHealthSummary {
   latestLab: WithId<LabRecord> | null;
   lowStockMeds: WithId<MaintenanceMedication>[];
   latestWeight: number | null;
+  latestWeightDate: string | null;
+  /** Entri paling baru di Timeline Perawatan (obat, suhu, keluhan, kunjungan, rawat inap) */
+  latestUpdate: { icon: string; text: string; at: number } | null;
 }
 
 /**
@@ -282,14 +297,50 @@ export interface MemberHealthSummary {
 export async function getMemberHealthSummary(
   member: WithId<FamilyMember>
 ): Promise<MemberHealthSummary> {
-  const [episodes, latestLab, meds, dailyLogs] = await Promise.all([
+  const [episodes, latestLab, meds, dailyLogs, visits, acuteMeds, symptomLogs, hospitalizations] = await Promise.all([
     SicknessService.listEpisodes(member.id),
     LabService.getLatestLabRecord(member.id),
     LifestyleService.listMaintenanceMedications(member.id),
-    LifestyleService.listDailyLogs(member.id, 1),
+    LifestyleService.listDailyLogs(member.id, 60),
+    SicknessService.listDoctorVisits(member.id),
+    SicknessService.listAcuteMedications(member.id),
+    SicknessService.listSymptomLogs(member.id),
+    SicknessService.listHospitalizations(member.id),
   ]);
 
+  // Entri terbaru di timeline: pakai aturan waktu yang sama dengan halaman Catatan Sakit
+  const candidates: { icon: string; text: string; at: number }[] = [
+    ...visits.map((v) => ({
+      icon: '🩺',
+      text: `Kunjungan ${v.doctorName}${v.diagnosis ? ` — ${v.diagnosis}` : ''}`,
+      at: combineDateTime(v.date, v.time || '00:00'),
+    })),
+    ...acuteMeds.map((m) => ({
+      icon: '💊',
+      text: `${m.name}${m.isAntibiotic ? ' (antibiotik)' : ''} — ${m.dose}`,
+      at: combineDateTime(m.startDate, m.administeredTime ?? '00:00'),
+    })),
+    ...hospitalizations.map((h) => ({
+      icon: '🏥',
+      text: `Rawat inap — ${h.hospitalName}`,
+      at: combineDateTime(h.admissionDate, h.admissionTime || '00:00'),
+    })),
+    ...symptomLogs.map((s) => ({
+      icon: s.complaints?.length ? '🤒' : '🌡️',
+      text: s.complaints?.length
+        ? `Keluhan — ${s.complaints.join(', ')}`
+        : `Cek suhu — ${s.temperatureC !== undefined ? `${s.temperatureC}°C` : '-'}`,
+      at: s.timestamp,
+    })),
+  ];
+  const latestUpdate = candidates.reduce<(typeof candidates)[number] | null>(
+    (best, c) => (!best || c.at > best.at ? c : best),
+    null
+  );
+
   const activeSickness = episodes.find((e) => e.status === 'aktif') ?? null;
+  // log terbaru yang berisi berat badan (log terbaru bisa saja hanya berisi menu makan)
+  const latestWeightLog = dailyLogs.find((l) => l.weightKg !== undefined) ?? null;
   const lowStockMeds = meds.filter(
     (m) => m.active && m.stockCount !== undefined && m.stockCount <= (m.lowStockThreshold ?? 3)
   );
@@ -299,6 +350,8 @@ export async function getMemberHealthSummary(
     activeSickness,
     latestLab,
     lowStockMeds,
-    latestWeight: dailyLogs[0]?.weightKg ?? null,
+    latestWeight: latestWeightLog?.weightKg ?? null,
+    latestWeightDate: latestWeightLog?.date ?? null,
+    latestUpdate,
   };
 }
