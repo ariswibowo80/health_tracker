@@ -11,6 +11,8 @@ import {
 } from '../../../types/health';
 import ScreenHeader from '../../../components/ScreenHeader';
 import DoctorPicker from '../../../components/DoctorPicker';
+import TemperatureBadge from '../../../components/TemperatureBadge';
+import TemperatureChart, { TemperaturePoint } from '../../../components/TemperatureChart';
 import { looksLikeAntibiotic, looksLikeAntiviral } from '../../../utils/medication';
 import {
   todayISO, nowHHMM, dateFromTimestamp, timeFromTimestamp, combineDateTime,
@@ -78,6 +80,10 @@ export default function SicknessScreen() {
   }, [memberId, loadDoctors]);
 
   useEffect(() => { load(); }, [load]);
+
+  function closeEpisodeModal() {
+    setShowNewEpisode(false); setEditingEpisodeId(null); resetEpisodeForm();
+  }
 
   function resetEpisodeForm() {
     setTitle(''); setStartDate(todayISO()); setComplaints('');
@@ -162,19 +168,20 @@ export default function SicknessScreen() {
       <ScreenHeader title="Catatan Sakit" fallbackHref={`/members/${memberId}`} />
       <ScrollView className="flex-1" contentContainerClassName="p-4 md:p-8">
       <Pressable
-        onPress={() => { setEditingEpisodeId(null); resetEpisodeForm(); setShowNewEpisode(!showNewEpisode); }}
+        onPress={() => { setEditingEpisodeId(null); resetEpisodeForm(); setShowNewEpisode(true); }}
         className="bg-teal-700 rounded-xl py-3 items-center mb-4 max-w-[220px]"
       >
         <Text className="text-white font-medium text-sm">
-          {showNewEpisode ? 'Tutup Form' : '+ Catat Episode Sakit Baru'}
+          + Catat Episode Sakit Baru
         </Text>
       </Pressable>
 
-      {(showNewEpisode || editingEpisodeId) && (
-        <View className="bg-white rounded-2xl p-4 border border-slate-100 mb-5">
-          <Text className="text-slate-900 font-semibold text-sm mb-3">
-            {editingEpisodeId ? 'Edit Episode Sakit' : 'Episode Sakit Baru'}
-          </Text>
+      <FormModal
+        visible={showNewEpisode || !!editingEpisodeId}
+        title={editingEpisodeId ? 'Edit Episode Sakit' : 'Episode Sakit Baru'}
+        onClose={closeEpisodeModal}
+      >
+        <View className="pt-1">
           <Field label="Judul Episode">
             <TextInput value={title} onChangeText={setTitle} placeholder="mis. Demam Gendis - Juli 2026"
               className="border border-slate-200 rounded-xl px-3 py-2 text-slate-900" />
@@ -188,14 +195,9 @@ export default function SicknessScreen() {
               className="border border-slate-200 rounded-xl px-3 py-2 text-slate-900" />
           </Field>
           <View className="flex-row gap-2 mt-1">
-            {editingEpisodeId && (
-              <Pressable
-                onPress={() => { setEditingEpisodeId(null); resetEpisodeForm(); }}
-                className="flex-1 border border-slate-200 rounded-xl py-3 items-center"
-              >
-                <Text className="text-slate-600 text-sm">Batal</Text>
-              </Pressable>
-            )}
+            <Pressable onPress={closeEpisodeModal} className="flex-1 border border-slate-200 rounded-xl py-3 items-center">
+              <Text className="text-slate-600 text-sm">Batal</Text>
+            </Pressable>
             <Pressable
               onPress={editingEpisodeId ? handleSaveEditEpisode : handleCreateEpisode}
               className="flex-1 bg-teal-700 rounded-xl py-3 items-center"
@@ -206,7 +208,7 @@ export default function SicknessScreen() {
             </Pressable>
           </View>
         </View>
-      )}
+      </FormModal>
 
       {loading ? <ActivityIndicator color="#0F766E" /> : episodes.length === 0 ? (
         <Text className="text-slate-400 text-sm">Belum ada catatan sakit.</Text>
@@ -320,6 +322,16 @@ function EpisodeCard({
       data: s,
     })),
   ].sort((a, b) => b.sortKey - a.sortKey); // terbaru di atas; urutan ini terbawa ke dalam tiap grup hari
+
+  // Titik grafik suhu: dari cek suhu/keluhan dan dari obat yang mencatat suhu
+  const temperaturePoints: TemperaturePoint[] = [
+    ...symptomLogs
+      .filter((l) => l.temperatureC !== undefined)
+      .map((l) => ({ at: l.timestamp, celsius: l.temperatureC as number })),
+    ...meds
+      .filter((m) => m.temperatureC !== undefined)
+      .map((m) => ({ at: combineDateTime(m.startDate, m.administeredTime ?? '00:00'), celsius: m.temperatureC as number })),
+  ];
 
   // Kelompokkan per hari (YYYY-MM-DD), lalu urutkan grup hari dari terbaru ke terlama
   const timelineByDay = new Map<string, TimelineItem[]>();
@@ -478,6 +490,10 @@ function EpisodeCard({
               <Text className="text-teal-700 text-xs font-medium">+ Rawat Inap</Text>
             </Pressable>
           </View>
+          {/* Grafik suhu badan */}
+          <Text className="text-slate-700 text-xs font-semibold mb-1">Grafik Suhu Badan</Text>
+          <TemperatureChart points={temperaturePoints} />
+
           {/* Filter jenis catatan */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerClassName="gap-1.5">
             {TIMELINE_FILTERS.map((f) => (
@@ -544,12 +560,11 @@ function EpisodeCard({
                                   <Text className="text-rose-700 text-[10px] font-semibold">ANTIBIOTIK</Text>
                                 </View>
                               )}
-                              {(m.administeredTime || m.temperatureC !== undefined) && (
-                                <Text className="text-slate-500 text-[11px] mt-0.5">
-                                  {m.administeredTime ? `Jam ${m.administeredTime}` : ''}
-                                  {m.administeredTime && m.temperatureC !== undefined ? ' · ' : ''}
-                                  {m.temperatureC !== undefined ? `Suhu ${m.temperatureC}°C` : ''}
-                                </Text>
+                              {m.administeredTime && (
+                                <Text className="text-slate-500 text-[11px] mt-0.5">Jam {m.administeredTime}</Text>
+                              )}
+                              {m.temperatureC !== undefined && (
+                                <View className="mt-1"><TemperatureBadge celsius={m.temperatureC} /></View>
                               )}
                               {m.specialNotes && <Text className="text-slate-500 text-[11px]">{m.specialNotes}</Text>}
                             </View>
@@ -609,10 +624,10 @@ function EpisodeCard({
                               <Text className="text-slate-900 text-xs font-medium">
                                 🤒 Keluhan — {k.complaints.join(', ')}
                               </Text>
-                              <Text className="text-slate-500 text-[11px] mt-0.5">
-                                Jam {timeFromTimestamp(k.timestamp)}
-                                {k.temperatureC !== undefined ? ` · Suhu ${k.temperatureC}°C` : ''}
-                              </Text>
+                              <Text className="text-slate-500 text-[11px] mt-0.5">Jam {timeFromTimestamp(k.timestamp)}</Text>
+                              {k.temperatureC !== undefined && (
+                                <View className="mt-1"><TemperatureBadge celsius={k.temperatureC} /></View>
+                              )}
                               {k.notes ? <Text className="text-slate-500 text-[11px]">{k.notes}</Text> : null}
                             </View>
                             <View className="flex-row gap-2 ml-2">
@@ -632,10 +647,11 @@ function EpisodeCard({
                       <View key={item.key} className="bg-blue-50 rounded-lg p-2.5">
                         <View className="flex-row justify-between items-start">
                           <View className="flex-1">
-                            <Text className="text-slate-900 text-xs font-medium">
-                              🌡️ Cek Suhu — {s.temperatureC !== undefined ? `${s.temperatureC}°C` : '-'}
-                            </Text>
+                            <Text className="text-slate-900 text-xs font-medium">🌡️ Cek Suhu</Text>
                             <Text className="text-slate-500 text-[11px] mt-0.5">Jam {timeFromTimestamp(s.timestamp)}</Text>
+                            {s.temperatureC !== undefined && (
+                              <View className="mt-1"><TemperatureBadge celsius={s.temperatureC} /></View>
+                            )}
                           </View>
                           <View className="flex-row gap-2 ml-2">
                             <Pressable onPress={() => { closeAllForms(); setEditingSymptomLog(s); }}>

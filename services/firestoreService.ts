@@ -283,7 +283,6 @@ export interface MemberHealthSummary {
   member: WithId<FamilyMember>;
   activeSickness: WithId<SicknessEpisode> | null;
   latestLab: WithId<LabRecord> | null;
-  lowStockMeds: WithId<MaintenanceMedication>[];
   latestWeight: number | null;
   latestWeightDate: string | null;
   /** Entri paling baru di Timeline Perawatan (obat, suhu, keluhan, kunjungan, rawat inap) */
@@ -297,10 +296,9 @@ export interface MemberHealthSummary {
 export async function getMemberHealthSummary(
   member: WithId<FamilyMember>
 ): Promise<MemberHealthSummary> {
-  const [episodes, latestLab, meds, dailyLogs, visits, acuteMeds, symptomLogs, hospitalizations] = await Promise.all([
+  const [episodes, latestLab, dailyLogs, visits, acuteMeds, symptomLogs, hospitalizations] = await Promise.all([
     SicknessService.listEpisodes(member.id),
     LabService.getLatestLabRecord(member.id),
-    LifestyleService.listMaintenanceMedications(member.id),
     LifestyleService.listDailyLogs(member.id, 60),
     SicknessService.listDoctorVisits(member.id),
     SicknessService.listAcuteMedications(member.id),
@@ -341,15 +339,11 @@ export async function getMemberHealthSummary(
   const activeSickness = episodes.find((e) => e.status === 'aktif') ?? null;
   // log terbaru yang berisi berat badan (log terbaru bisa saja hanya berisi menu makan)
   const latestWeightLog = dailyLogs.find((l) => l.weightKg !== undefined) ?? null;
-  const lowStockMeds = meds.filter(
-    (m) => m.active && m.stockCount !== undefined && m.stockCount <= (m.lowStockThreshold ?? 3)
-  );
 
   return {
     member,
     activeSickness,
     latestLab,
-    lowStockMeds,
     latestWeight: latestWeightLog?.weightKg ?? null,
     latestWeightDate: latestWeightLog?.date ?? null,
     latestUpdate,
