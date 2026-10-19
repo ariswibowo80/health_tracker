@@ -1,8 +1,8 @@
 // app/members/[id]/index.tsx
 import type { ReactNode } from 'react';
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import {
   getMemberHealthSummary,
   MemberHealthSummary,
@@ -34,22 +34,28 @@ export default function MemberDetailScreen() {
   const [exporting, setExporting] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
 
+  const hasLoaded = useRef(false);
+
   const load = useCallback(async () => {
     if (!id) return;
-    setLoading(true);
+    if (!hasLoaded.current) setLoading(true);
     try {
       const snap = await getDoc(doc(db, 'familyMembers', id));
       if (!snap.exists()) return;
       const member = { id: snap.id, ...(snap.data() as FamilyMember) } as WithId<FamilyMember>;
       setSummary(await getMemberHealthSummary(member));
+      hasLoaded.current = true;
     } finally {
       setLoading(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Muat ulang saat halaman kembali terlihat (mis. setelah mencatat sakit atau berat badan)
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   async function handleExport() {
     if (!summary) return;

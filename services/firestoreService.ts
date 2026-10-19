@@ -296,14 +296,22 @@ export interface MemberHealthSummary {
 export async function getMemberHealthSummary(
   member: WithId<FamilyMember>
 ): Promise<MemberHealthSummary> {
+  // Hanya daftar episode yang wajib berhasil (menentukan status sakit). Data pelengkap
+  // dibuat toleran: kalau satu query gagal, kartu tetap tampil tanpa bagian itu.
+  const optional = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
+    p.catch((e) => {
+      console.warn('Ringkasan dashboard: sebagian data gagal dimuat', e);
+      return fallback;
+    });
+
   const [episodes, latestLab, dailyLogs, visits, acuteMeds, symptomLogs, hospitalizations] = await Promise.all([
     SicknessService.listEpisodes(member.id),
-    LabService.getLatestLabRecord(member.id),
-    LifestyleService.listDailyLogs(member.id, 60),
-    SicknessService.listDoctorVisits(member.id),
-    SicknessService.listAcuteMedications(member.id),
-    SicknessService.listSymptomLogs(member.id),
-    SicknessService.listHospitalizations(member.id),
+    optional(LabService.getLatestLabRecord(member.id), null),
+    optional(LifestyleService.listDailyLogs(member.id, 60), []),
+    optional(SicknessService.listDoctorVisits(member.id), []),
+    optional(SicknessService.listAcuteMedications(member.id), []),
+    optional(SicknessService.listSymptomLogs(member.id), []),
+    optional(SicknessService.listHospitalizations(member.id), []),
   ]);
 
   // Entri terbaru di timeline: pakai aturan waktu yang sama dengan halaman Catatan Sakit

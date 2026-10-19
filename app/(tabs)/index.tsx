@@ -4,9 +4,9 @@
 //  - Mobile: daftar kartu 1 kolom, compact.
 //  - Web (lebar >= 768px): grid multi-kolom seperti dashboard admin.
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { View, Text, TextInput, ScrollView, useWindowDimensions, ActivityIndicator, Pressable, Modal } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { auth } from '../../services/firebaseConfig';
 import { ensureHouseholdAndGetActiveOwner } from '../../services/householdService';
@@ -55,8 +55,11 @@ export default function DashboardScreen() {
     }
   }
 
+  // Spinner penuh hanya saat pemuatan pertama; saat kembali ke dashboard data diperbarui diam-diam
+  const hasLoaded = useRef(false);
+
   const loadDashboard = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoaded.current) setLoading(true);
     try {
       const user = auth.currentUser;
       if (!user) return;
@@ -74,14 +77,19 @@ export default function DashboardScreen() {
         return a.member.name.localeCompare(b.member.name);
       });
       setSummaries(results);
+      hasLoaded.current = true;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+  // Muat ulang setiap dashboard kembali terlihat (mis. setelah mencatat sakit di halaman anggota),
+  // supaya status sakit & update terakhir tidak basi.
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, [loadDashboard])
+  );
 
   const activeSicknessCount = summaries.filter((s) => s.activeSickness).length;
 

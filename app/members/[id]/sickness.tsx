@@ -340,7 +340,11 @@ function EpisodeCard({
       case 'semua': return true;
       case 'obat': return item.kind === 'obat';
       case 'antibiotik': return item.kind === 'obat' && !!item.data.isAntibiotic;
-      case 'suhu': return item.kind === 'suhu';
+      // suhu = cek suhu, ditambah suhu yang tercatat bersama obat atau keluhan
+      case 'suhu':
+        return item.kind === 'suhu'
+          || (item.kind === 'obat' && item.data.temperatureC !== undefined)
+          || (item.kind === 'keluhan' && item.data.temperatureC !== undefined);
       case 'keluhan': return item.kind === 'keluhan';
       case 'kunjungan': return item.kind === 'kunjungan';
       case 'rawat': return item.kind === 'rawat';
